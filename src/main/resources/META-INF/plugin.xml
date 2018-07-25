@@ -84,6 +84,9 @@
         <defaultLiveTemplatesProvider implementation="org.elm.ide.livetemplates.ElmLiveTemplateProvider" />
     </extensions>
 
+    <extensions defaultExtensionNs="org.jetbrains">
+        <webServerPathHandler implementation="org.elm.ide.http.ElmWebServerPathHandler" />
+    </extensions>
 
     <actions>
 

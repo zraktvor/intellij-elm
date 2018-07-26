@@ -13,11 +13,17 @@ import java.nio.file.Path
 
 class ElmCLI(private val elmExecutablePath: Path) {
 
-    fun make(owner: Disposable, elmProject: ElmProject): ProcessOutput {
+    // TODO [kl] /dev/null is almost certainly wrong on Windows
+    fun make(
+            owner: Disposable,
+            elmProject: ElmProject,
+            elmMainPath: String = "src/Main.Elm",
+            outputPath: String = "/dev/null"
+    ): ProcessOutput {
         val workDir = elmProject.manifestPath.parent
         val commandLine = GeneralCommandLine(elmExecutablePath)
                 .withWorkDirectory(workDir)
-                .withParameters("make", "src/Main.elm", "--output=/dev/null")
+                .withParameters("make", elmMainPath, "--output=$outputPath")
         return execute(commandLine, owner, ignoreExitCode = true)
     }
 

@@ -7,6 +7,8 @@ import io.netty.buffer.Unpooled
 import io.netty.channel.ChannelHandlerContext
 import io.netty.handler.codec.MessageToByteEncoder
 import io.netty.handler.codec.http.*
+import org.elm.workspace.*
+import org.elm.workspace.ElmToolchain.Companion.ELM_BINARY
 import org.jetbrains.builtInWebServer.WebServerPathHandlerAdapter
 import org.jetbrains.io.send
 import java.io.InputStream
@@ -75,6 +77,12 @@ class ElmWebServerPathHandler : WebServerPathHandlerAdapter() {
     }
 
     private fun handleWatcherStream(project: Project, context: ChannelHandlerContext) {
+        val compilerPath = getCompilerPath(project)
+        if (compilerPath == null) {
+            basicResponse(HttpResponseStatus.INTERNAL_SERVER_ERROR, "Elm toolchain not configured")
+            return
+        }
+
         val channel = context.channel()
         val response = DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK)
         response.headers().add(HttpHeaderNames.CONTENT_TYPE, "text/event-stream")
@@ -92,16 +100,19 @@ class ElmWebServerPathHandler : WebServerPathHandlerAdapter() {
             }
         })
 
-        val jsPath = Paths.get(project.basePath).resolve(appJavascriptPath)
+        val elmProgramPath = Paths.get(project.basePath).resolve(appElmPath)
 
         if (prevModified == 0L)
-            prevModified = getLastModifiedTime(jsPath)
+            prevModified = getLastModifiedTime(elmProgramPath)
 
         val runnable = Runnable {
-            val lastModified = getLastModifiedTime(jsPath)
+            val lastModified = getLastModifiedTime(elmProgramPath)
             if (lastModified == prevModified)
                 return@Runnable
             prevModified = lastModified
+
+            compile(project, compilerPath)
+
             val msg = "data: Main.js\n\n"
             channel.writeAndFlush(msg)
                     .addChannelListener {
@@ -117,7 +128,25 @@ class ElmWebServerPathHandler : WebServerPathHandlerAdapter() {
         }
 
         // TODO [kl] async file watcher instead of polling
-        context.channel().eventLoop().scheduleAtFixedRate(runnable, 1, 1, TimeUnit.SECONDS)
+        context.channel().eventLoop().scheduleAtFixedRate(runnable, 1, 5, TimeUnit.SECONDS)
+    }
+
+    private fun getCompilerPath(project: Project): Path? {
+        if (project.elmToolchain == null || !project.hasAnElmProject) {
+            guessAndSetupElmProject(project, explicitRequest = true)
+        }
+        return project.elmToolchain?.pathToExecutable(ELM_BINARY)
+    }
+
+    private fun compile(project: Project, compilerPath: Path) {
+        val elmProject = project.elmWorkspace.allProjects.first()
+        val processOutput = ElmCLI(compilerPath).make(
+                owner = project,
+                elmProject = elmProject,
+                elmMainPath = "src/Main.elm",
+                outputPath = "build/Main.js")
+        println("compile stdout: ${processOutput.stdout}")
+        println("compile stderr: ${processOutput.stderr}")
     }
 }
 
@@ -160,8 +189,13 @@ private fun bundledFileTextStream(path: String, classLoader: ClassLoader): Input
     return stream
 }
 
-private fun userFile(path: String, project: Project): ByteArray? =
-        project.baseDir.findFileByRelativePath(path)?.contentsToByteArray()
+private fun userFile(path: String, project: Project): ByteArray? {
+    return try {
+        Files.readAllBytes(Paths.get(project.basePath).resolve(path))
+    } catch (e: Exception) {
+        return null
+    }
+}
 
 private fun getLastModifiedTime(path: Path?): Long {
     val time = Files.readAttributes(path, "lastModifiedTime")["lastModifiedTime"] as FileTime

@@ -1,29 +1,38 @@
 package org.elm.ide.http
 
 import com.intellij.openapi.project.Project
+import com.intellij.util.io.addChannelListener
 import io.netty.buffer.Unpooled
 import io.netty.channel.ChannelHandlerContext
 import io.netty.handler.codec.http.*
 import org.jetbrains.builtInWebServer.WebServerPathHandlerAdapter
 import org.jetbrains.io.send
 import java.io.InputStream
+import java.nio.file.*
 
 class ElmWebServerPathHandler : WebServerPathHandlerAdapter() {
 
-    // TODO [kl] both of these need to be more dynamic
+    private val watchService = FileSystems.getDefault().newWatchService()
+    private var watchKey: WatchKey? = null
+
+    // TODO [kl] all of these need to be more dynamic/contextual
     private val appHtmlPath = "example/index.html"
     private val appElmPath = "example/src/Main.elm"
     private val appJavascriptPath = "example/build/Main.js"
+    private val appBuildDirPath = "example/build"
 
     override fun process(path: String, project: Project, request: FullHttpRequest, context: ChannelHandlerContext): Boolean {
         if (request.method() != HttpMethod.GET)
             return false
 
+        if (path == "stream-Main") {
+            handleWatcherStream(project, context)
+        }
+
         val response = when {
             path == "runtime.js" -> bundledFileResponse("hot/runtime.js", "application/javascript", javaClass.classLoader)
             path == "index.html" -> userFileResponse(appHtmlPath, "text/html", project)
             path == "app.js" -> injectedJavascriptResponse(project)
-            path == "stream-Main" -> watcherStreamResponse(project)
             else -> notFoundResponse("unknown route: $path")
         }
         response.send(context.channel(), request)
@@ -61,9 +70,49 @@ class ElmWebServerPathHandler : WebServerPathHandlerAdapter() {
         return fileResponse(fullyInjectedCode.toByteArray(Charsets.UTF_8), "application/javascript")
     }
 
-    private fun watcherStreamResponse(project: Project): HttpResponse {
-        // TODO [kl] implement me
-        return basicResponse(HttpResponseStatus.OK, "TODO TODO TODO")
+    private fun handleWatcherStream(project: Project, context: ChannelHandlerContext) {
+        val response = DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK)
+        response.headers().add(HttpHeaderNames.CONNECTION, "keep-alive")
+        response.headers().add(HttpHeaderNames.CONTENT_TYPE, "text/event-stream")
+        response.send(context.channel(), false)
+
+        if (watchKey == null) {
+            val rootPath = Paths.get(project.basePath).resolve(appBuildDirPath)
+            println("start watching $rootPath")
+            rootPath.register(watchService, StandardWatchEventKinds.ENTRY_MODIFY)
+        }
+
+        while (true) {
+            println("waiting for an event")
+            val key = watchService.take()
+                    ?: break
+
+            for (event in key.pollEvents()) {
+                println("Got watchService event: $event")
+                val changedFileName = event.context() as Path
+                if (appJavascriptPath.endsWith(changedFileName.toString())) {
+                    println("matched ${event.context()}")
+                    val msg = "data: $appJavascriptPath\n\n"
+                    val msgBytes = msg.toByteArray(Charsets.UTF_8)
+                    context.writeAndFlush(Unpooled.copiedBuffer(msgBytes))
+                            .addChannelListener {
+                                if (it.cause() != null) {
+                                    println("write error: ${it.cause()}")
+                                }
+                                when {
+                                    it.isSuccess -> println("write succeeded")
+                                    it.isCancelled -> println("write cancelled")
+                                }
+                            }
+                } else {
+                    println("ignoring $changedFileName ${event.context()}")
+                }
+            }
+
+        }
+
+        println("closing the watcher stream channel")
+        context.channel().close()
     }
 }
 

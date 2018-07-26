@@ -2,24 +2,28 @@ package org.elm.ide.http
 
 import com.intellij.openapi.project.Project
 import com.intellij.util.io.addChannelListener
+import io.netty.buffer.ByteBuf
 import io.netty.buffer.Unpooled
 import io.netty.channel.ChannelHandlerContext
+import io.netty.handler.codec.MessageToByteEncoder
 import io.netty.handler.codec.http.*
 import org.jetbrains.builtInWebServer.WebServerPathHandlerAdapter
 import org.jetbrains.io.send
 import java.io.InputStream
-import java.nio.file.*
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
+import java.nio.file.attribute.FileTime
+import java.util.concurrent.TimeUnit
 
 class ElmWebServerPathHandler : WebServerPathHandlerAdapter() {
 
-    private val watchService = FileSystems.getDefault().newWatchService()
-    private var watchKey: WatchKey? = null
+    private var prevModified: Long = 0
 
     // TODO [kl] all of these need to be more dynamic/contextual
     private val appHtmlPath = "example/index.html"
     private val appElmPath = "example/src/Main.elm"
     private val appJavascriptPath = "example/build/Main.js"
-    private val appBuildDirPath = "example/build"
 
     override fun process(path: String, project: Project, request: FullHttpRequest, context: ChannelHandlerContext): Boolean {
         if (request.method() != HttpMethod.GET)
@@ -32,7 +36,7 @@ class ElmWebServerPathHandler : WebServerPathHandlerAdapter() {
         val response = when {
             path == "runtime.js" -> bundledFileResponse("hot/runtime.js", "application/javascript", javaClass.classLoader)
             path == "index.html" -> userFileResponse(appHtmlPath, "text/html", project)
-            path == "app.js" -> injectedJavascriptResponse(project)
+            path == "Main.js" -> injectedJavascriptResponse(project)
             else -> notFoundResponse("unknown route: $path")
         }
         response.send(context.channel(), request)
@@ -71,48 +75,49 @@ class ElmWebServerPathHandler : WebServerPathHandlerAdapter() {
     }
 
     private fun handleWatcherStream(project: Project, context: ChannelHandlerContext) {
+        val channel = context.channel()
         val response = DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK)
-        response.headers().add(HttpHeaderNames.CONNECTION, "keep-alive")
         response.headers().add(HttpHeaderNames.CONTENT_TYPE, "text/event-stream")
-        response.send(context.channel(), false)
 
-        if (watchKey == null) {
-            val rootPath = Paths.get(project.basePath).resolve(appBuildDirPath)
-            println("start watching $rootPath")
-            rootPath.register(watchService, StandardWatchEventKinds.ENTRY_MODIFY)
-        }
+        channel.write(response)
+        channel.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT)
 
-        while (true) {
-            println("waiting for an event")
-            val key = watchService.take()
-                    ?: break
-
-            for (event in key.pollEvents()) {
-                println("Got watchService event: $event")
-                val changedFileName = event.context() as Path
-                if (appJavascriptPath.endsWith(changedFileName.toString())) {
-                    println("matched ${event.context()}")
-                    val msg = "data: $appJavascriptPath\n\n"
-                    val msgBytes = msg.toByteArray(Charsets.UTF_8)
-                    context.writeAndFlush(Unpooled.copiedBuffer(msgBytes))
-                            .addChannelListener {
-                                if (it.cause() != null) {
-                                    println("write error: ${it.cause()}")
-                                }
-                                when {
-                                    it.isSuccess -> println("write succeeded")
-                                    it.isCancelled -> println("write cancelled")
-                                }
-                            }
-                } else {
-                    println("ignoring $changedFileName ${event.context()}")
-                }
+        // For same unknown reason, if you don't register this encoder, then the
+        // write will fail with error "io.netty.handler.codec.EncoderException [...] unexpected message type".
+        // Maybe it's something to do with how JetBrains configured Netty?
+        // TODO [kl] is it ok to register this multiple times?
+        channel.pipeline().addFirst(object : MessageToByteEncoder<String>() {
+            override fun encode(ctx: ChannelHandlerContext, msg: String, out: ByteBuf) {
+                out.writeCharSequence(msg, Charsets.UTF_8)
             }
+        })
 
+        val jsPath = Paths.get(project.basePath).resolve(appJavascriptPath)
+
+        if (prevModified == 0L)
+            prevModified = getLastModifiedTime(jsPath)
+
+        val runnable = Runnable {
+            val lastModified = getLastModifiedTime(jsPath)
+            if (lastModified == prevModified)
+                return@Runnable
+            prevModified = lastModified
+            val msg = "data: Main.js\n\n"
+            channel.writeAndFlush(msg)
+                    .addChannelListener {
+                        when {
+                            it.isSuccess -> println("write succeeded")
+                            it.isCancelled -> println("write cancelled")
+                            it.isDone && it.cause() != null -> {
+                                println("write error: ${it.cause()}")
+                                it.cause().printStackTrace()
+                            }
+                        }
+                    }
         }
 
-        println("closing the watcher stream channel")
-        context.channel().close()
+        // TODO [kl] async file watcher instead of polling
+        context.channel().eventLoop().scheduleAtFixedRate(runnable, 1, 1, TimeUnit.SECONDS)
     }
 }
 
@@ -157,3 +162,8 @@ private fun bundledFileTextStream(path: String, classLoader: ClassLoader): Input
 
 private fun userFile(path: String, project: Project): ByteArray? =
         project.baseDir.findFileByRelativePath(path)?.contentsToByteArray()
+
+private fun getLastModifiedTime(path: Path?): Long {
+    val time = Files.readAttributes(path, "lastModifiedTime")["lastModifiedTime"] as FileTime
+    return time.toMillis()
+}

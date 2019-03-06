@@ -46,6 +46,11 @@ sealed class ElmProject(
     val testsDirPath: Path = projectDirPath.resolve("tests")
 
     /**
+     * The path to the "elm-stuff" directory
+     */
+    val elmStuffDirPath: Path = projectDirPath.resolve("elm-stuff")
+
+    /**
      * A name which can be shown in the UI. Note that while Elm packages have user-assigned
      * names, applications do not. Thus, in order to cover both cases, we use the name
      * of the parent directory.

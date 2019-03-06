@@ -16,7 +16,9 @@ import com.intellij.openapi.components.*
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.roots.ContentEntry
 import com.intellij.openapi.roots.ModuleRootManager
+import com.intellij.openapi.roots.ProjectFileIndex
 import com.intellij.openapi.roots.ex.ProjectRootManagerEx
 import com.intellij.openapi.util.EmptyRunnable
 import com.intellij.openapi.util.SimpleModificationTracker
@@ -168,6 +170,7 @@ class ElmWorkspaceService(
         projectsRef.getAndUpdate(f)
         log.info("Resetting the directoryIndex for project lookup")
         directoryIndex.resetIndex()
+        establishRoots()
         notifyDidChangeWorkspace()
         return allProjects
     }
@@ -201,6 +204,45 @@ class ElmWorkspaceService(
                     }
                 }
             }
+
+
+    // INTELLIJ SOURCE ROOTS
+
+
+    private fun establishRoots() {
+        ApplicationManager.getApplication().invokeAndWait {
+            runWriteAction {
+                for (project in allProjects) {
+                    if (!project.isElm18) {
+                        establishRoot(project.testsDirPath, isTestSource = true)
+                    }
+                    for (srcDir in project.absoluteSourceDirectories) {
+                        establishRoot(srcDir, isTestSource = false)
+                    }
+                    excludeElmStuff(project.elmStuffDirPath)
+                }
+            }
+        }
+    }
+
+    private fun establishRoot(srcDir: Path, isTestSource: Boolean) {
+        getContentEntry(srcDir)?.addSourceFolder(srcDir.toString(), isTestSource)
+    }
+
+    private fun excludeElmStuff(dir: Path) {
+        getContentEntry(dir)?.addExcludePattern(dir.toString())
+    }
+
+    private fun getContentEntry(path: Path): ContentEntry? {
+        val (module, contentRoot) = run {
+            val vDir = findFileByPathTestAware(path) ?: return null
+            val index = ProjectFileIndex.getInstance(intellijProject)
+            val module = index.getModuleForFile(vDir, /*honorExclusion*/ false) ?: return null
+            val contentRoot = index.getContentRootForFile(vDir, /*honorExclusion*/ false) ?: return null
+            Pair(module, contentRoot)
+        }
+        return ModuleRootManager.getInstance(module).contentEntries.find { it.url == contentRoot.url }
+    }
 
 
     // WORKSPACE ACTIONS
@@ -382,15 +424,6 @@ class ElmWorkspaceService(
                     isElmFormatOnSaveEnabled = isElmFormatOnSaveEnabled
             )
         }
-
-        // Ensure that `elm-stuff` directories are always excluded so that they don't pollute open-by-filename, etc.
-        intellijProject.modules
-                .asSequence()
-                .flatMap { ModuleRootManager.getInstance(it).contentEntries.asSequence() }
-                .forEach {
-                    if ("elm-stuff" !in it.excludePatterns)
-                        it.addExcludePattern("elm-stuff")
-                }
 
         return state.getChild("elmProjects")
                 .getChildren("project")

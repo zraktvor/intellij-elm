@@ -1,57 +1,32 @@
-package org.frawa.elmtest.run;
+package org.frawa.elmtest.run
 
-import com.intellij.execution.Location;
-import com.intellij.execution.actions.ConfigurationContext;
-import com.intellij.execution.actions.LazyRunConfigurationProducer;
-import com.intellij.execution.configurations.ConfigurationFactory;
-import com.intellij.openapi.components.ServiceManager;
-import com.intellij.openapi.util.Ref;
-import com.intellij.psi.PsiElement;
-import org.elm.workspace.ElmWorkspaceService;
-import org.frawa.elmtest.core.ElmProjectTestsHelper;
-import org.jetbrains.annotations.NotNull;
+import com.intellij.execution.actions.ConfigurationContext
+import com.intellij.execution.actions.LazyRunConfigurationProducer
+import com.intellij.openapi.util.Ref
+import com.intellij.psi.PsiElement
+import org.elm.lang.core.psi.ElmFile
+import org.frawa.elmtest.core.ElmProjectTestsHelper
 
-import java.nio.file.Path;
-import java.util.Optional;
+class ElmTestRunConfigurationProducer : LazyRunConfigurationProducer<ElmTestRunConfiguration>() {
 
-public class ElmTestRunConfigurationProducer extends LazyRunConfigurationProducer<ElmTestRunConfiguration> {
+    override fun getConfigurationFactory() =
+            ElmTestConfigurationFactory(ElmTestRunConfigurationType())
 
-    @NotNull
-    @Override
-    public ConfigurationFactory getConfigurationFactory() {
-        return new ElmTestConfigurationFactory(new ElmTestRunConfigurationType());
+    override fun setupConfigurationFromContext(configuration: ElmTestRunConfiguration, context: ConfigurationContext, sourceElement: Ref<PsiElement>): Boolean {
+        val elmFolder = getCandidateElmFolder(context) ?: return false
+        configuration.options = ElmTestRunConfiguration.Options(elmFolder)
+        configuration.setGeneratedName()
+        return true
     }
 
-    @Override
-    protected boolean setupConfigurationFromContext(ElmTestRunConfiguration configuration, ConfigurationContext context, Ref<PsiElement> sourceElement) {
-        return getCandidateElmFolder(context)
-                .map(folder -> {
-                    configuration.setOptions(new ElmTestRunConfiguration.Options(folder));
-                    configuration.setGeneratedName();
-                    return true;
-                })
-                .orElse(false);
+    override fun isConfigurationFromContext(configuration: ElmTestRunConfiguration, context: ConfigurationContext): Boolean {
+        val elmFolder = getCandidateElmFolder(context)
+        return elmFolder != null && elmFolder == configuration.options.elmFolder
     }
 
-    @Override
-    public boolean isConfigurationFromContext(ElmTestRunConfiguration configuration, ConfigurationContext context) {
-        return getCandidateElmFolder(context)
-                .map(folder -> folder.equals(configuration.getOptions().getElmFolder()))
-                .orElse(false);
-    }
-
-    private Optional<String> getCandidateElmFolder(ConfigurationContext context) {
-        if (context == null) return Optional.empty();
-
-        ElmWorkspaceService elmWorkspace = ServiceManager.getService(
-                context.getProject(), ElmWorkspaceService.class);
-
-        return Optional.of(context)
-                .map(ConfigurationContext::getLocation)
-                .map(Location::getVirtualFile)
-                .map(elmWorkspace::findProjectForFile)
-                .flatMap(Optional::ofNullable)
-                .map(ElmProjectTestsHelper::elmFolderForTesting)
-                .map(Path::toString);
+    private fun getCandidateElmFolder(context: ConfigurationContext): String? {
+        val elmFile = context.psiLocation?.containingFile as? ElmFile ?: return null
+        val elmProject = elmFile.elmProject ?: return null
+        return ElmProjectTestsHelper.elmFolderForTesting(elmProject).toString()
     }
 }

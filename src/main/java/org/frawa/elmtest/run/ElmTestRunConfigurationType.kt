@@ -1,40 +1,16 @@
-package org.frawa.elmtest.run;
+package org.frawa.elmtest.run
 
-import com.intellij.execution.configurations.ConfigurationFactory;
-import com.intellij.execution.configurations.ConfigurationType;
-import org.jetbrains.annotations.NotNull;
+import com.intellij.execution.configurations.ConfigurationFactory
+import com.intellij.execution.configurations.ConfigurationType
 
-import javax.swing.*;
+class ElmTestRunConfigurationType : ConfigurationType {
 
-import static org.frawa.elmtest.run.ElmTestConfigurationFactory.RUN_ICON;
+    override fun getDisplayName() = "Elm Test"
+    override fun getConfigurationTypeDescription() = "Elm Test Runner"
+    override fun getId() = "ELM_TEST_RUN_CONFIGURATION"
+    override fun getIcon() = ElmTestConfigurationFactory.RUN_ICON
 
-public class ElmTestRunConfigurationType implements ConfigurationType {
-    @Override
-    public String getDisplayName() {
-        return "Elm Test";
-    }
-
-    @Override
-    public String getConfigurationTypeDescription() {
-        return "Elm Test Runner";
-    }
-
-    @Override
-    public Icon getIcon() {
-        return RUN_ICON;
-    }
-
-    @NotNull
-    @Override
-    public String getId() {
-        return "ELM_TEST_RUN_CONFIGURATION";
-    }
-
-    @Override
-    public ConfigurationFactory[] getConfigurationFactories() {
-        return new ConfigurationFactory[]{new ElmTestConfigurationFactory(this)};
-    }
-
-
+    override fun getConfigurationFactories(): Array<ConfigurationFactory> =
+            arrayOf(ElmTestConfigurationFactory(this))
 }
 

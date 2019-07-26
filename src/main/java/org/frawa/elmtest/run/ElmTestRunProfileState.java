@@ -109,9 +109,9 @@ public class ElmTestRunProfileState extends CommandLineState {
 
     @SystemIndependent
     private String getElmFolder() {
-        return configuration.options.elmFolder == null || configuration.options.elmFolder.isEmpty()
+        return configuration.getOptions().getElmFolder() == null || configuration.getOptions().getElmFolder().isEmpty()
                 ? this.getEnvironment().getProject().getBasePath()
-                : configuration.options.elmFolder;
+                : configuration.getOptions().getElmFolder();
     }
 
     @Nullable

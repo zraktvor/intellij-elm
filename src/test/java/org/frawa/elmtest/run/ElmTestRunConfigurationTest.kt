@@ -1,39 +1,34 @@
-package org.frawa.elmtest.run;
+package org.frawa.elmtest.run
 
-import org.jdom.Element;
-import org.junit.Test;
+import org.jdom.Element
+import org.junit.Assert.assertEquals
+import org.junit.Test
 
-import static org.junit.Assert.assertEquals;
-
-public class ElmTestRunConfigurationTest {
+class ElmTestRunConfigurationTest {
 
     @Test
-    public void writeOptions() {
-        Element root = new Element("ROOT");
+    fun writeOptions() {
+        val root = Element("ROOT")
 
-        ElmTestRunConfiguration.Options options = new ElmTestRunConfiguration.Options();
-        options.elmFolder = "folder";
+        val options = ElmTestRunConfiguration.Options("folder")
+        options.toXml(root)
 
-        ElmTestRunConfiguration.writeOptions(options, root);
-
-        assertEquals(1, root.getChildren().size());
-        assertEquals(ElmTestRunConfiguration.class.getSimpleName(), root.getChildren().get(0).getName());
-        assertEquals(1, root.getChildren().get(0).getAttributes().size());
-        assertEquals("elm-folder", root.getChildren().get(0).getAttributes().get(0).getName());
-        assertEquals("folder", root.getChildren().get(0).getAttributes().get(0).getValue());
+        assertEquals(1, root.children.size.toLong())
+        assertEquals(ElmTestRunConfiguration::class.java.simpleName, root.children[0].name)
+        assertEquals(1, root.children[0].attributes.size.toLong())
+        assertEquals("elm-folder", root.children[0].attributes[0].name)
+        assertEquals("folder", root.children[0].attributes[0].value)
     }
 
     @Test
-    public void roundTrip() {
-        Element root = new Element("ROOT");
+    fun roundTrip() {
+        val root = Element("ROOT")
 
-        ElmTestRunConfiguration.Options options = new ElmTestRunConfiguration.Options();
-        options.elmFolder = "folder";
+        val options = ElmTestRunConfiguration.Options("folder")
+        options.toXml(root)
+        val options2 = ElmTestRunConfiguration.Options.fromXml(root)
 
-        ElmTestRunConfiguration.writeOptions(options, root);
-        ElmTestRunConfiguration.Options options2 = ElmTestRunConfiguration.readOptions(root);
-
-        assertEquals(options.elmFolder, options2.elmFolder);
+        assertEquals(options.elmFolder, options2.elmFolder)
     }
 
 }

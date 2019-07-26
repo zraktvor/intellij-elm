@@ -26,7 +26,7 @@ public class ElmTestRunConfigurationProducer extends LazyRunConfigurationProduce
     protected boolean setupConfigurationFromContext(ElmTestRunConfiguration configuration, ConfigurationContext context, Ref<PsiElement> sourceElement) {
         return getCandidateElmFolder(context)
                 .map(folder -> {
-                    configuration.options.elmFolder = folder;
+                    configuration.setOptions(new ElmTestRunConfiguration.Options(folder));
                     configuration.setGeneratedName();
                     return true;
                 })
@@ -36,7 +36,7 @@ public class ElmTestRunConfigurationProducer extends LazyRunConfigurationProduce
     @Override
     public boolean isConfigurationFromContext(ElmTestRunConfiguration configuration, ConfigurationContext context) {
         return getCandidateElmFolder(context)
-                .map(folder -> folder.equals(configuration.options.elmFolder))
+                .map(folder -> folder.equals(configuration.getOptions().getElmFolder()))
                 .orElse(false);
     }
 

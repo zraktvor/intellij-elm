@@ -42,7 +42,7 @@ public class ElmTestSettingsEditor extends SettingsEditor<ElmTestRunConfiguratio
     @Override
     protected void resetEditorFrom(@NotNull ElmTestRunConfiguration configuration) {
         helper
-                .nameByProjectDirPath(configuration.options.elmFolder)
+                .nameByProjectDirPath(configuration.getOptions().getElmFolder())
                 .ifPresent(projectChooser::setSelectedItem);
     }
 
@@ -50,7 +50,8 @@ public class ElmTestSettingsEditor extends SettingsEditor<ElmTestRunConfiguratio
     protected void applyEditorTo(@NotNull ElmTestRunConfiguration configuration) {
         String name = (String) projectChooser.getSelectedItem();
         if (name != null) {
-            configuration.options.elmFolder = helper.projectDirPathByName(name).orElse(null);
+            String folder = helper.projectDirPathByName(name).orElse(null);
+            configuration.setOptions(new ElmTestRunConfiguration.Options(folder));
         }
     }
 }

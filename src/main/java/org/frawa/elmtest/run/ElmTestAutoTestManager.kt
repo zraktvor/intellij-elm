@@ -1,41 +1,32 @@
-package org.frawa.elmtest.run;
+package org.frawa.elmtest.run
 
-import com.intellij.execution.testframework.autotest.AbstractAutoTestManager;
-import com.intellij.execution.testframework.autotest.AutoTestWatcher;
-import com.intellij.execution.testframework.autotest.DelayedDocumentWatcher;
-import com.intellij.openapi.components.ServiceManager;
-import com.intellij.openapi.components.State;
-import com.intellij.openapi.components.Storage;
-import com.intellij.openapi.components.StoragePathMacros;
-import com.intellij.openapi.fileEditor.FileEditorManager;
-import com.intellij.openapi.project.Project;
-import org.elm.lang.core.ElmFileType;
-import org.jetbrains.annotations.NotNull;
+import com.intellij.execution.testframework.autotest.AbstractAutoTestManager
+import com.intellij.execution.testframework.autotest.AutoTestWatcher
+import com.intellij.execution.testframework.autotest.DelayedDocumentWatcher
+import com.intellij.openapi.components.State
+import com.intellij.openapi.components.Storage
+import com.intellij.openapi.components.StoragePathMacros
+import com.intellij.openapi.components.service
+import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Condition
+import com.intellij.util.Consumer
+import org.elm.lang.core.ElmFileType
 
 @State(
         name = "ElmTestAutoTestManager",
-        storages = {@Storage(StoragePathMacros.WORKSPACE_FILE)}
+        storages = [Storage(StoragePathMacros.WORKSPACE_FILE)]
 )
-public class ElmTestAutoTestManager extends AbstractAutoTestManager {
+class ElmTestAutoTestManager(project: Project) : AbstractAutoTestManager(project) {
 
-    @NotNull
-    static ElmTestAutoTestManager getInstance(Project project) {
-        return ServiceManager.getService(project, ElmTestAutoTestManager.class);
+    override fun createWatcher(project: Project): AutoTestWatcher =
+            DelayedDocumentWatcher(project,
+                    myDelayMillis,
+                    Consumer<Int> { restartAllAutoTests(it) },
+                    Condition { file -> FileEditorManager.getInstance(project).isFileOpen(file) && ElmFileType == file.fileType }
+            )
+
+    companion object {
+        fun getInstance(project: Project): ElmTestAutoTestManager = project.service()
     }
-
-    ElmTestAutoTestManager(@NotNull Project project) {
-        super(project);
-    }
-
-    @Override
-    @NotNull
-    protected AutoTestWatcher createWatcher(Project project) {
-        return new DelayedDocumentWatcher(project,
-                myDelayMillis,
-                this::restartAllAutoTests,
-                file -> FileEditorManager.getInstance(project).isFileOpen(file) &&
-                        ElmFileType.INSTANCE.equals(file.getFileType())
-        );
-    }
-
 }

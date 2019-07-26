@@ -87,7 +87,7 @@ public class ElmTestRunProfileState extends CommandLineState {
             ((DefaultExecutionResult) result).setRestartActions(new ToggleAutoTestAction() {
                 @Override
                 public AbstractAutoTestManager getAutoTestManager(Project project) {
-                    return ElmTestAutoTestManager.getInstance(project);
+                    return ElmTestAutoTestManager.Companion.getInstance(project);
                 }
             });
         }

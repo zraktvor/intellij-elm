@@ -124,6 +124,6 @@ class ElmTestRunProfileState(
                     }
                 }
 
-        override fun getTestLocator(): SMTestLocator? = ElmTestLocator.INSTANCE
+        override fun getTestLocator(): SMTestLocator? = ElmTestLocator
     }
 }

@@ -1,112 +1,102 @@
-package org.frawa.elmtest.core;
+package org.frawa.elmtest.core
 
-import com.intellij.psi.PsiElement;
-import com.intellij.testFramework.ParsingTestCase;
-import org.elm.lang.core.parser.ElmParserDefinition;
-import org.jetbrains.annotations.NotNull;
-
-import java.nio.file.Path;
-import java.util.Arrays;
+import com.intellij.psi.PsiElement
+import com.intellij.testFramework.ParsingTestCase
+import junit.framework.TestCase
+import org.elm.lang.core.parser.ElmParserDefinition
+import java.util.*
 
 
-public class ElmPluginHelperTest extends ParsingTestCase {
+class ElmPluginHelperTest : ParsingTestCase("elmPluginHelper", "elm", ElmParserDefinition()) {
 
-    public ElmPluginHelperTest() {
-        super("elmPluginHelper", "elm", new ElmParserDefinition());
+    override fun getTestDataPath(): String {
+        return "src/test/resources"
     }
 
-    @Override
-    protected String getTestDataPath() {
-        return "src/test/resources";
-    }
-
-    @NotNull
-    @Override
     // see file resources/elmPluginHelper/Navigation
-    protected String getTestName(boolean lowercaseFirstLetter) {
-        return "Navigation";
+    override fun getTestName(lowercaseFirstLetter: Boolean): String {
+        return "Navigation"
     }
 
-    public void testTopLevelSuite() {
-        doTest(false);
-        assertSuite(27, "suite1");
+    fun testTopLevelSuite() {
+        doTest(false)
+        assertSuite(27, "suite1")
     }
 
-    public void testTestInSuite() {
-        doTest(false);
-        assertTest(55, "suite1", "test1");
+    fun testTestInSuite() {
+        doTest(false)
+        assertTest(55, "suite1", "test1")
     }
 
-    public void testTopLevelTest() {
-        doTest(false);
-        assertTest(137, "test1");
+    fun testTopLevelTest() {
+        doTest(false)
+        assertTest(137, "test1")
     }
 
-    public void testNestedSuitesAndTests() {
-        doTest(false);
-        assertSuite(207, "suite2");
-        assertTest(235, "suite2", "test1");
-        assertSuite(291, "suite2", "nested1");
-        assertTest(324, "suite2", "nested1", "test1");
+    fun testNestedSuitesAndTests() {
+        doTest(false)
+        assertSuite(207, "suite2")
+        assertTest(235, "suite2", "test1")
+        assertSuite(291, "suite2", "nested1")
+        assertTest(324, "suite2", "nested1", "test1")
     }
 
-    public void testMissingTopLevelSuite() {
-        doTest(false);
-        assertMissing("suiteMissing");
+    fun testMissingTopLevelSuite() {
+        doTest(false)
+        assertMissing("suiteMissing")
     }
 
-    public void testMissingTopLevelTest() {
-        doTest(false);
-        assertMissing("testMissing");
+    fun testMissingTopLevelTest() {
+        doTest(false)
+        assertMissing("testMissing")
     }
 
-    public void testMissingNestedSuitesAndTests() {
-        doTest(false);
-        assertSuite(207, "suite2");
-        assertMissing("suite2", "testMissing");
-        assertFallback("suite2", "suite2", "nestedMissing");
-        assertFallback("nested1", "suite2", "nested1", "testMissing");
+    fun testMissingNestedSuitesAndTests() {
+        doTest(false)
+        assertSuite(207, "suite2")
+        assertMissing("suite2", "testMissing")
+        assertFallback("suite2", "suite2", "nestedMissing")
+        assertFallback("nested1", "suite2", "nested1", "testMissing")
     }
 
-    private void assertSuite(int offset, String... labels) {
-        Path path = LabelUtils.INSTANCE.toPath(Arrays.asList(labels));
-        PsiElement element = ElmPluginHelper.INSTANCE.getPsiElement(true, path.toString(), myFile);
+    private fun assertSuite(offset: Int, vararg labels: String) {
+        val path = LabelUtils.toPath(Arrays.asList(*labels))
+        val element = ElmPluginHelper.getPsiElement(true, path.toString(), myFile)
 
-        String expected = String.format("describe \"%s\"", labels[labels.length - 1]);
-        assertEquals(expected, firstLine(text(element)));
-        assertEquals(offset, element.getNode().getStartOffset());
+        val expected = String.format("describe \"%s\"", labels[labels.size - 1])
+        TestCase.assertEquals(expected, firstLine(text(element)))
+        TestCase.assertEquals(offset, element.node.startOffset)
     }
 
-    private void assertTest(int offset, String... labels) {
-        Path path = LabelUtils.INSTANCE.toPath(Arrays.asList(labels));
-        PsiElement element = ElmPluginHelper.INSTANCE.getPsiElement(false, path.toString(), myFile);
+    private fun assertTest(offset: Int, vararg labels: String) {
+        val path = LabelUtils.toPath(Arrays.asList(*labels))
+        val element = ElmPluginHelper.getPsiElement(false, path.toString(), myFile)
 
-        String expected = String.format("test \"%s\"", labels[labels.length - 1]);
-        assertEquals(expected, text(element));
-        assertEquals(offset, element.getNode().getStartOffset());
+        val expected = String.format("test \"%s\"", labels[labels.size - 1])
+        TestCase.assertEquals(expected, text(element))
+        TestCase.assertEquals(offset, element.node.startOffset)
     }
 
-    private void assertMissing(String... labels) {
-        Path path = LabelUtils.INSTANCE.toPath(Arrays.asList(labels));
-        PsiElement element = ElmPluginHelper.INSTANCE.getPsiElement(false, path.toString(), myFile);
-        assertSame(myFile, element);
+    private fun assertMissing(vararg labels: String) {
+        val path = LabelUtils.toPath(Arrays.asList(*labels))
+        val element = ElmPluginHelper.getPsiElement(false, path.toString(), myFile)
+        TestCase.assertSame(myFile, element)
     }
 
-    private void assertFallback(String fallback, String... labels) {
-        Path path = LabelUtils.INSTANCE.toPath(Arrays.asList(labels));
-        PsiElement element = ElmPluginHelper.INSTANCE.getPsiElement(true, path.toString(), myFile);
+    private fun assertFallback(fallback: String, vararg labels: String) {
+        val path = LabelUtils.toPath(Arrays.asList(*labels))
+        val element = ElmPluginHelper.getPsiElement(true, path.toString(), myFile)
 
-        String expected = String.format("describe \"%s\"", fallback);
-        assertEquals(expected, firstLine(text(element)));
+        val expected = String.format("describe \"%s\"", fallback)
+        TestCase.assertEquals(expected, firstLine(text(element)))
     }
 
-    @NotNull
-    private String text(PsiElement element) {
-        return element.getText().trim();
+    private fun text(element: PsiElement): String {
+        return element.text.trim { it <= ' ' }
     }
 
-    private String firstLine(String text) {
-        return text.split("\n")[0];
+    private fun firstLine(text: String): String {
+        return text.split("\n".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()[0]
     }
 
 }

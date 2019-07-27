@@ -1,246 +1,235 @@
-package org.frawa.elmtest.core;
+package org.frawa.elmtest.core
 
-import com.google.gson.*;
-import com.intellij.execution.testframework.sm.runner.events.*;
-import org.frawa.elmtest.core.json.CompileErrors;
-import org.frawa.elmtest.core.json.Error;
-import org.jetbrains.annotations.NotNull;
+import com.google.gson.GsonBuilder
+import com.google.gson.JsonElement
+import com.google.gson.JsonObject
+import com.google.gson.JsonSyntaxException
+import com.intellij.execution.testframework.sm.runner.events.*
+import org.frawa.elmtest.core.LabelUtils.commonParent
+import org.frawa.elmtest.core.LabelUtils.getName
+import org.frawa.elmtest.core.LabelUtils.subParents
+import org.frawa.elmtest.core.LabelUtils.toErrorLocationUrl
+import org.frawa.elmtest.core.LabelUtils.toSuiteLocationUrl
+import org.frawa.elmtest.core.LabelUtils.toTestLocationUrl
+import org.frawa.elmtest.core.json.CompileErrors
+import org.frawa.elmtest.core.json.Error
+import org.intellij.lang.annotations.Language
+import java.nio.file.Path
 
-import java.nio.file.Path;
-import java.util.Collections;
-import java.util.List;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
+class ElmTestJsonProcessor {
 
-import static org.frawa.elmtest.core.LabelUtils.INSTANCE;
+    private var currentPath = LabelUtils.EMPTY_PATH
 
-public class ElmTestJsonProcessor {
-
-    private static Gson gson = new GsonBuilder().setPrettyPrinting().create();
-
-    private Path currentPath = LabelUtils.INSTANCE.getEMPTY_PATH();
-
-    @NotNull
-    private static TestIgnoredEvent newTestIgnoredEvent(Path path, String comment) {
-        return new TestIgnoredEvent(INSTANCE.getName(path), sureText(comment), null);
-    }
-
-    static Stream<TreeNodeEvent> testEvents(Path path, JsonObject obj) {
-        String status = getStatus(obj);
-        if ("pass".equals(status)) {
-            long duration = Long.parseLong(obj.get("duration").getAsString());
-            return Stream.of(
-                    newTestStartedEvent(path),
-                    newTestFinishedEvent(path, duration)
-            );
-        } else if ("todo".equals(status)) {
-            String comment = getComment(obj);
-            return Stream.of(
-                    newTestIgnoredEvent(path, comment)
-            );
-        }
+    fun accept(@Language("JSON") text: String): Sequence<TreeNodeEvent>? {
         try {
-            String message = getMessage(obj);
-            String actual = getActual(obj);
-            String expected = getExpected(obj);
-
-            return Stream.of(
-                    newTestStartedEvent(path),
-                    newTestFailedEvent(path, actual, expected, message != null ? message : "")
-            );
-        } catch (Throwable e) {
-            String failures = new GsonBuilder().setPrettyPrinting().create().toJson(obj.get("failures"));
-            return Stream.of(
-                    newTestStartedEvent(path),
-                    newTestFailedEvent(path, null, null, failures)
-            );
-        }
-    }
-
-    @NotNull
-    private static TestFinishedEvent newTestFinishedEvent(Path path, long duration) {
-        return new TestFinishedEvent(INSTANCE.getName(path), duration);
-    }
-
-    @NotNull
-    private static TestFailedEvent newTestFailedEvent(Path path, String actual, String expected, String message) {
-        return new TestFailedEvent(INSTANCE.getName(path), sureText(message), null, false, actual, expected);
-    }
-
-    @NotNull
-    private static TestStartedEvent newTestStartedEvent(Path path) {
-        return new TestStartedEvent(INSTANCE.getName(path), INSTANCE.toTestLocationUrl(path));
-    }
-
-    static Path toPath(JsonObject element) {
-        return LabelUtils.INSTANCE.toPath(StreamSupport.stream(element.get("labels").getAsJsonArray().spliterator(), false)
-                .map(JsonElement::getAsString)
-                .collect(Collectors.toList())
-        );
-    }
-
-    static Stream<Path> closeSuitePaths(Path from, Path to) {
-        Path commonParent = INSTANCE.commonParent(from, to);
-        return INSTANCE.subParents(from, commonParent);
-    }
-
-    static Stream<Path> openSuitePaths(Path from, Path to) {
-        Path commonParent = INSTANCE.commonParent(from, to);
-        List<Path> parents = INSTANCE.subParents(to, commonParent).collect(Collectors.toList());
-        Collections.reverse(parents);
-        return parents.stream();
-    }
-
-    @NotNull
-    private static String sureText(String comment) {
-        return comment != null ? comment : "";
-    }
-
-    static String getComment(JsonObject obj) {
-        return getFirstFailure(obj).isJsonPrimitive()
-                ? getFirstFailure(obj).getAsString()
-                : null;
-    }
-
-    static String getMessage(JsonObject obj) {
-        return getFirstFailure(obj).isJsonObject()
-                ? getFirstFailure(obj).getAsJsonObject().get("message").getAsString()
-                : null;
-    }
-
-    static private JsonObject getReason(JsonObject obj) {
-        return getFirstFailure(obj).isJsonObject()
-                ? getFirstFailure(obj).getAsJsonObject().get("reason").getAsJsonObject()
-                : null;
-    }
-
-    static private JsonObject getData(JsonObject obj) {
-        JsonObject reason = getReason(obj);
-        return reason != null
-                ? reason.get("data") != null
-                ? reason.get("data").isJsonObject()
-                ? reason.get("data").getAsJsonObject()
-                : null
-                : null
-                : null;
-    }
-
-    static String getActual(JsonObject obj) {
-        return pretty(getDataMember(obj, "actual"));
-    }
-
-    static String getExpected(JsonObject obj) {
-        return pretty(getDataMember(obj, "expected"));
-    }
-
-    private static JsonElement getDataMember(JsonObject obj, String name) {
-        JsonObject data = getData(obj);
-        return data != null
-                ? data.get(name)
-                : null;
-    }
-
-    private static String pretty(JsonElement element) {
-        return element != null
-                ? element.isJsonPrimitive()
-                ? element.getAsString()
-                : gson.toJson(element)
-                : null;
-    }
-
-    private static JsonElement getFirstFailure(JsonObject obj) {
-        return obj.get("failures").getAsJsonArray().get(0);
-    }
-
-    static private String getStatus(JsonObject obj) {
-        return obj.get("status").getAsString();
-    }
-
-    public List<TreeNodeEvent> accept(String text) {
-        try {
-            JsonObject obj = gson.fromJson(text, JsonObject.class);
-            if (obj == null) {
-                return null;
-            }
-            JsonElement type = obj.get("type");
-            if (type != null && "compile-errors".equals(type.getAsString())) {
-                return accept(toCompileErrors(obj));
-            }
-            String event = obj.get("event").getAsString();
-
-            if ("runStart".equals(event)) {
-                currentPath = LabelUtils.INSTANCE.getEMPTY_PATH();
-                return Collections.emptyList();
-            } else if ("runComplete".equals(event)) {
-                List<TreeNodeEvent> closeAll = closeSuitePaths(currentPath, INSTANCE.getEMPTY_PATH())
-                        .map((Function<Path, TreeNodeEvent>) this::newTestSuiteFinishedEvent)
-                        .collect(Collectors.toList());
-                currentPath = LabelUtils.INSTANCE.getEMPTY_PATH();
-                return closeAll;
-            } else if (!"testCompleted".equals(event)) {
-                return Collections.emptyList();
+            val obj: JsonObject = gson.fromJson(text, JsonObject::class.java) ?: return null
+            if ("compile-errors" == obj.get("type")?.asString) {
+                return accept(toCompileErrors(obj))
             }
 
-            Path path = toPath(obj);
-            if ("todo".equals(getStatus(obj))) {
-                path = path.resolve("todo");
+            val event = obj.get("event")?.asString
+            if ("runStart" == event) {
+                currentPath = LabelUtils.EMPTY_PATH
+                return emptySequence()
+            } else if ("runComplete" == event) {
+                val closeAll = closeSuitePaths(currentPath, LabelUtils.EMPTY_PATH)
+                        .map { newTestSuiteFinishedEvent(it) }
+                currentPath = LabelUtils.EMPTY_PATH
+                return closeAll
+            } else if ("testCompleted" != event) {
+                return emptySequence()
             }
 
-            List<TreeNodeEvent> result = Stream.of(
-                    closeSuitePaths(currentPath, path).map((Function<Path, TreeNodeEvent>) this::newTestSuiteFinishedEvent),
-                    openSuitePaths(currentPath, path).map((Function<Path, TreeNodeEvent>) this::newTestSuiteStartedEvent),
-                    testEvents(path, obj)
-            )
-                    .flatMap(Function.identity())
-                    .collect(Collectors.toList());
+            var path = toPath(obj)
+            if ("todo" == getStatus(obj)) {
+                path = path.resolve("todo")
+            }
 
-            currentPath = path;
-            return result;
+            val result: Sequence<TreeNodeEvent> = closeSuitePaths(currentPath, path)
+                    .map { this.newTestSuiteFinishedEvent(it) }
+                    .plus(openSuitePaths(currentPath, path).map { this.newTestSuiteStartedEvent(it) })
+                    .plus(testEvents(path, obj))
 
-        } catch (JsonSyntaxException e) {
+            currentPath = path
+            return result
+
+        } catch (e: JsonSyntaxException) {
             if (text.contains("Compilation failed")) {
-                String json = text.substring(0, text.lastIndexOf("Compilation failed"));
-                JsonObject obj = gson.fromJson(json, JsonObject.class);
-                if (obj == null) {
-                    return null;
-                }
-                JsonElement type = obj.get("type");
-                if (type != null && "compile-errors".equals(type.getAsString())) {
-                    return accept(toCompileErrors(obj));
+                val json = text.substring(0, text.lastIndexOf("Compilation failed"))
+                val obj = gson.fromJson(json, JsonObject::class.java) ?: return null
+                if ("compile-errors" == obj.get("type")?.asString) {
+                    return accept(toCompileErrors(obj))
                 }
             }
-            return null;
+            return null
         }
+
     }
 
-    @NotNull
-    private TestSuiteStartedEvent newTestSuiteStartedEvent(Path path) {
-        return new TestSuiteStartedEvent(INSTANCE.getName(path), INSTANCE.toSuiteLocationUrl(path));
+    private fun newTestSuiteStartedEvent(path: Path): TestSuiteStartedEvent {
+        return TestSuiteStartedEvent(getName(path), toSuiteLocationUrl(path))
     }
 
-    @NotNull
-    private TestSuiteFinishedEvent newTestSuiteFinishedEvent(Path path) {
-        return new TestSuiteFinishedEvent(INSTANCE.getName(path));
+    private fun newTestSuiteFinishedEvent(path: Path): TestSuiteFinishedEvent {
+        return TestSuiteFinishedEvent(getName(path))
     }
 
-    private List<TreeNodeEvent> accept(CompileErrors compileErrors) {
-        return compileErrors.errors.stream()
-                .flatMap(this::toErrorEvents)
-                .collect(Collectors.toList());
+    private fun accept(compileErrors: CompileErrors): Sequence<TreeNodeEvent> {
+        return compileErrors.errors
+                ?.asSequence()
+                ?.flatMap { this.toErrorEvents(it) }
+                ?: emptySequence()
     }
 
-    CompileErrors toCompileErrors(JsonObject obj) {
-        return gson.fromJson(obj, CompileErrors.class);
+    fun toCompileErrors(obj: JsonObject): CompileErrors {
+        return gson.fromJson(obj, CompileErrors::class.java)
     }
 
-    private Stream<TreeNodeEvent> toErrorEvents(Error error) {
-        return error.problems.stream()
-                .flatMap(problem -> Stream.of(
-                        new TestStartedEvent(problem.title, INSTANCE.toErrorLocationUrl(error.path, problem.region.start.line, problem.region.start.column)),
-                        new TestFailedEvent(problem.title, null, problem.getTextMessage(), null, true, null, null, null, null, false, false, -1)
-                ));
+    private fun toErrorEvents(error: Error): Sequence<TreeNodeEvent> {
+        return error.problems
+                ?.asSequence()
+                ?.flatMap { problem ->
+                    sequenceOf(
+                            TestStartedEvent(problem.title!!, toErrorLocationUrl(error.path!!, problem.region?.start!!.line, problem.region?.start!!.column)),
+                            TestFailedEvent(problem.title!!, null, problem.textMessage, null, true, null, null, null, null, false, false, -1)
+                    )
+                }
+                ?: emptySequence()
+    }
+
+    companion object {
+
+        private val gson = GsonBuilder().setPrettyPrinting().create()
+
+        fun testEvents(path: Path, obj: JsonObject): Sequence<TreeNodeEvent> {
+            val status = getStatus(obj)
+            if ("pass" == status) {
+                val duration = java.lang.Long.parseLong(obj.get("duration").asString)
+                return sequenceOf(newTestStartedEvent(path))
+                        .plus(newTestFinishedEvent(path, duration))
+            } else if ("todo" == status) {
+                val comment = getComment(obj)
+                return sequenceOf(newTestIgnoredEvent(path, comment))
+            }
+            try {
+                val message = getMessage(obj)
+                val actual = getActual(obj)
+                val expected = getExpected(obj)
+
+                return sequenceOf(newTestStartedEvent(path))
+                        .plus(newTestFailedEvent(path, actual, expected, message
+                                ?: ""))
+            } catch (e: Throwable) {
+                val failures = GsonBuilder().setPrettyPrinting().create().toJson(obj.get("failures"))
+                return sequenceOf(newTestStartedEvent(path))
+                        .plus(newTestFailedEvent(path, null, null, failures))
+            }
+
+        }
+
+        private fun newTestIgnoredEvent(path: Path, comment: String?): TestIgnoredEvent {
+            return TestIgnoredEvent(getName(path), sureText(comment), null)
+        }
+
+        private fun newTestFinishedEvent(path: Path, duration: Long): TestFinishedEvent {
+            return TestFinishedEvent(getName(path), duration)
+        }
+
+        private fun newTestFailedEvent(path: Path, actual: String?, expected: String?, message: String): TestFailedEvent {
+            return TestFailedEvent(getName(path), sureText(message), null, false, actual, expected)
+        }
+
+        private fun newTestStartedEvent(path: Path): TestStartedEvent {
+            return TestStartedEvent(getName(path), toTestLocationUrl(path))
+        }
+
+        private fun sureText(comment: String?): String {
+            return comment ?: ""
+        }
+
+        fun getComment(obj: JsonObject): String? {
+            return if (getFirstFailure(obj).isJsonPrimitive)
+                getFirstFailure(obj).asString
+            else
+                null
+        }
+
+        fun getMessage(obj: JsonObject): String? {
+            return if (getFirstFailure(obj).isJsonObject)
+                getFirstFailure(obj).asJsonObject.get("message").asString
+            else
+                null
+        }
+
+        fun getReason(obj: JsonObject): JsonObject? {
+            return if (getFirstFailure(obj).isJsonObject)
+                getFirstFailure(obj).asJsonObject.get("reason").asJsonObject
+            else
+                null
+        }
+
+        private fun getData(obj: JsonObject): JsonObject? {
+            val reason = getReason(obj)
+            return if (reason != null)
+                if (reason.get("data") != null)
+                    if (reason.get("data").isJsonObject)
+                        reason.get("data").asJsonObject
+                    else
+                        null
+                else
+                    null
+            else
+                null
+        }
+
+        fun getActual(obj: JsonObject): String? {
+            return pretty(getDataMember(obj, "actual"))
+        }
+
+        fun getExpected(obj: JsonObject): String? {
+            return pretty(getDataMember(obj, "expected"))
+        }
+
+        private fun getDataMember(obj: JsonObject, name: String): JsonElement? {
+            val data = getData(obj)
+            return data?.get(name)
+        }
+
+        private fun pretty(element: JsonElement?): String? {
+            return if (element != null)
+                if (element.isJsonPrimitive)
+                    element.asString
+                else
+                    gson.toJson(element)
+            else
+                null
+        }
+
+        private fun getFirstFailure(obj: JsonObject): JsonElement {
+            return obj.get("failures").asJsonArray.get(0)
+        }
+
+        private fun getStatus(obj: JsonObject): String {
+            return obj.get("status").asString
+        }
+
+        fun toPath(element: JsonObject): Path {
+            return LabelUtils.toPath(
+                    element.get("labels").asJsonArray.iterator().asSequence()
+                            .map { it.asString }
+                            .toList()
+            )
+        }
+
+        fun closeSuitePaths(from: Path, to: Path): Sequence<Path> {
+            val commonParent = commonParent(from, to)
+            return subParents(from, commonParent).asSequence()
+        }
+
+        fun openSuitePaths(from: Path, to: Path): Sequence<Path> {
+            val commonParent = commonParent(from, to)
+            return subParents(to, commonParent).toList().reversed().asSequence()
+        }
     }
 
 }

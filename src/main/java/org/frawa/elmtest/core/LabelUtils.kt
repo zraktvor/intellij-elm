@@ -8,7 +8,6 @@ import java.net.URLEncoder
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.*
-import java.util.stream.Stream
 
 object LabelUtils {
     val ELM_TEST_PROTOCOL = "elmTest"
@@ -92,7 +91,7 @@ object LabelUtils {
         }
     }
 
-    fun subParents(path: Path, excludeParent: Path): Stream<Path> {
+    fun subParents(path: Path, excludeParent: Path): List<Path> {
         if (excludeParent === EMPTY_PATH) {
             // TODO remove duplication with below
             val result = ArrayList<Path>()
@@ -101,7 +100,7 @@ object LabelUtils {
                 result.add(current)
                 current = current.parent
             }
-            return result.stream()
+            return result
         }
 
         if (!path.startsWith(excludeParent)) {
@@ -109,7 +108,7 @@ object LabelUtils {
         }
 
         if (path === EMPTY_PATH) {
-            return Stream.empty()
+            return emptyList()
         }
 
         val result = ArrayList<Path>()
@@ -118,7 +117,7 @@ object LabelUtils {
             result.add(current)
             current = current.parent
         }
-        return result.stream()
+        return result
     }
 
     fun toErrorLocationUrl(path: String, line: Int, column: Int): String {

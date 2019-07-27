@@ -1,140 +1,136 @@
-package org.frawa.elmtest.core;
+package org.frawa.elmtest.core
 
-import com.intellij.openapi.util.Pair;
-import com.intellij.openapi.util.io.FileUtil;
+import com.intellij.openapi.util.Pair
+import com.intellij.openapi.util.io.FileUtil
+import java.io.UnsupportedEncodingException
+import java.net.URLDecoder
+import java.net.URLEncoder
+import java.nio.file.Path
+import java.nio.file.Paths
+import java.util.*
+import java.util.stream.Stream
 
-import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
-import java.net.URLEncoder;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+object LabelUtils {
+    val ELM_TEST_PROTOCOL = "elmTest"
+    val DESCRIBE_PROTOCOL = ELM_TEST_PROTOCOL + "Describe"
+    private val TEST_PROTOCOL = ELM_TEST_PROTOCOL + "Test"
+    val ERROR_PROTOCOL = ELM_TEST_PROTOCOL + "Error"
 
-public class LabelUtils {
-    public static final String ELM_TEST_PROTOCOL = "elmTest";
-    public static final String DESCRIBE_PROTOCOL = ELM_TEST_PROTOCOL + "Describe";
-    private static final String TEST_PROTOCOL = ELM_TEST_PROTOCOL + "Test";
-    public static final String ERROR_PROTOCOL = ELM_TEST_PROTOCOL + "Error";
+    val EMPTY_PATH = Paths.get("")
 
-    final static Path EMPTY_PATH = Paths.get("");
-
-    private static String getModuleName(Path path) {
-        return pathString(path.getName(0));
+    private fun getModuleName(path: Path): String {
+        return pathString(path.getName(0))
     }
 
-    private static String encodeLabel(String label) {
+    private fun encodeLabel(label: String): String {
         try {
-            return URLEncoder.encode(label, "utf8");
-        } catch (UnsupportedEncodingException e) {
-            throw new RuntimeException(e);
+            return URLEncoder.encode(label, "utf8")
+        } catch (e: UnsupportedEncodingException) {
+            throw RuntimeException(e)
         }
+
     }
 
-    static String decodeLabel(Path encoded) {
+    internal fun decodeLabel(encoded: Path): String {
         try {
-            return URLDecoder.decode(pathString(encoded), "utf8");
-        } catch (UnsupportedEncodingException e) {
-            throw new RuntimeException(e);
+            return URLDecoder.decode(pathString(encoded), "utf8")
+        } catch (e: UnsupportedEncodingException) {
+            throw RuntimeException(e)
         }
+
     }
 
-    static Path toPath(List<String> labels) {
-        List<String> encoded = labels.stream()
-                .map(LabelUtils::encodeLabel)
-                .collect(Collectors.toList());
-        if (encoded.isEmpty()) {
-            return EMPTY_PATH;
-        }
-        return Paths.get(
-                encoded.get(0),
-                encoded.subList(1, encoded.size()).toArray(new String[0])
-        );
+    fun toPath(labels: List<String>): Path {
+        val encoded = labels.map { encodeLabel(it) }
+        return if (encoded.isEmpty()) {
+            EMPTY_PATH
+        } else Paths.get(
+                encoded[0],
+                *encoded.subList(1, encoded.size).toTypedArray()
+        )
     }
 
-    static String pathString(Path path) {
-        return FileUtil.toSystemIndependentName(path.toString());
+    fun pathString(path: Path): String {
+        return FileUtil.toSystemIndependentName(path.toString())
     }
 
-    public static String getName(Path path) {
-        return decodeLabel(path.getFileName());
+    fun getName(path: Path): String {
+        return decodeLabel(path.fileName)
     }
 
-    static String toSuiteLocationUrl(Path path) {
-        return toLocationUrl(DESCRIBE_PROTOCOL, path);
+    fun toSuiteLocationUrl(path: Path): String {
+        return toLocationUrl(DESCRIBE_PROTOCOL, path)
     }
 
-    static String toTestLocationUrl(Path path) {
-        return toLocationUrl(TEST_PROTOCOL, path);
+    fun toTestLocationUrl(path: Path): String {
+        return toLocationUrl(TEST_PROTOCOL, path)
     }
 
-    private static String toLocationUrl(String protocol, Path path) {
-        return String.format("%s://%s", protocol, pathString(path));
+    private fun toLocationUrl(protocol: String, path: Path): String {
+        return String.format("%s://%s", protocol, pathString(path))
     }
 
-    public static Pair<String, String> fromLocationUrlPath(String path) {
-        Path path1 = Paths.get(path);
-        String moduleName = getModuleName(path1);
-        String moduleFile = String.format("tests/%s.elm", moduleName.replace(".", "/"));
-        String label = path1.getNameCount() > 1 ? decodeLabel(path1.subpath(1, path1.getNameCount())) : "";
-        return new Pair<>(moduleFile, label);
+    fun fromLocationUrlPath(path: String): Pair<String, String> {
+        val path1 = Paths.get(path)
+        val moduleName = getModuleName(path1)
+        val moduleFile = String.format("tests/%s.elm", moduleName.replace(".", "/"))
+        val label = if (path1.nameCount > 1) decodeLabel(path1.subpath(1, path1.nameCount)) else ""
+        return Pair(moduleFile, label)
     }
 
-    static Path commonParent(Path path1, Path path2) {
+    fun commonParent(path1: Path?, path2: Path): Path {
         if (path1 == null) {
-            return EMPTY_PATH;
+            return EMPTY_PATH
         }
-        if (path1.getNameCount() > path2.getNameCount()) {
-            return commonParent(path2, path1);
+        if (path1.nameCount > path2.nameCount) {
+            return commonParent(path2, path1)
         }
-        if (path2.startsWith(path1)) {
-            return path1;
+        return if (path2.startsWith(path1)) {
+            path1
         } else {
-            return commonParent(path1.getParent(), path2);
+            commonParent(path1.parent, path2)
         }
     }
 
-    static Stream<Path> subParents(Path path, Path excludeParent) {
-        if (excludeParent == EMPTY_PATH) {
+    fun subParents(path: Path, excludeParent: Path): Stream<Path> {
+        if (excludeParent === EMPTY_PATH) {
             // TODO remove duplication with below
-            List<Path> result = new ArrayList<>();
-            for (Path current = path.getParent(); current != null; current = current.getParent()) {
-                result.add(current);
+            val result = ArrayList<Path>()
+            var current: Path? = path.parent
+            while (current != null) {
+                result.add(current)
+                current = current.parent
             }
-            return result.stream();
+            return result.stream()
         }
 
         if (!path.startsWith(excludeParent)) {
-            throw new IllegalStateException("not parent");
+            throw IllegalStateException("not parent")
         }
 
-        if (path == EMPTY_PATH) {
-            return Stream.empty();
+        if (path === EMPTY_PATH) {
+            return Stream.empty()
         }
 
-        List<Path> result = new ArrayList<>();
-        for (Path current = path.getParent(); !current.equals(excludeParent); current = current.getParent()) {
-            result.add(current);
+        val result = ArrayList<Path>()
+        var current = path.parent
+        while (current != excludeParent) {
+            result.add(current)
+            current = current.parent
         }
-        return result.stream();
-
-        // JSK 9
-//        return Stream.iterate(path, current -> current != null ? current.getParent() : null)
-//                .takeWile(current -> !current.equals(excludeParent));
+        return result.stream()
     }
 
-    static String toErrorLocationUrl(String path, int line, int column) {
-        return String.format("%s://%s::%d::%d", ERROR_PROTOCOL, path, line, column);
+    fun toErrorLocationUrl(path: String, line: Int, column: Int): String {
+        return String.format("%s://%s::%d::%d", ERROR_PROTOCOL, path, line, column)
     }
 
-    public static Pair<String, Pair<Integer, Integer>> fromErrorLocationUrlPath(String spec) {
-        String[] parts = spec.split("::");
-        String file = parts[0];
-        int line = parts.length > 1 ? Integer.parseInt(parts[1]) : 1;
-        int column = parts.length > 2 ? Integer.parseInt(parts[2]) : 1;
-        return new Pair<>(file, new Pair<>(line, column));
+    fun fromErrorLocationUrlPath(spec: String): Pair<String, Pair<Int, Int>> {
+        val parts = spec.split("::".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
+        val file = parts[0]
+        val line = if (parts.size > 1) Integer.parseInt(parts[1]) else 1
+        val column = if (parts.size > 2) Integer.parseInt(parts[2]) else 1
+        return Pair(file, Pair(line, column))
     }
 
 }

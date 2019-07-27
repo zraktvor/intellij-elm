@@ -69,7 +69,7 @@ public class ElmPluginHelperTest extends ParsingTestCase {
     }
 
     private void assertSuite(int offset, String... labels) {
-        Path path = LabelUtils.toPath(Arrays.asList(labels));
+        Path path = LabelUtils.INSTANCE.toPath(Arrays.asList(labels));
         PsiElement element = ElmPluginHelper.INSTANCE.getPsiElement(true, path.toString(), myFile);
 
         String expected = String.format("describe \"%s\"", labels[labels.length - 1]);
@@ -78,7 +78,7 @@ public class ElmPluginHelperTest extends ParsingTestCase {
     }
 
     private void assertTest(int offset, String... labels) {
-        Path path = LabelUtils.toPath(Arrays.asList(labels));
+        Path path = LabelUtils.INSTANCE.toPath(Arrays.asList(labels));
         PsiElement element = ElmPluginHelper.INSTANCE.getPsiElement(false, path.toString(), myFile);
 
         String expected = String.format("test \"%s\"", labels[labels.length - 1]);
@@ -87,13 +87,13 @@ public class ElmPluginHelperTest extends ParsingTestCase {
     }
 
     private void assertMissing(String... labels) {
-        Path path = LabelUtils.toPath(Arrays.asList(labels));
+        Path path = LabelUtils.INSTANCE.toPath(Arrays.asList(labels));
         PsiElement element = ElmPluginHelper.INSTANCE.getPsiElement(false, path.toString(), myFile);
         assertSame(myFile, element);
     }
 
     private void assertFallback(String fallback, String... labels) {
-        Path path = LabelUtils.toPath(Arrays.asList(labels));
+        Path path = LabelUtils.INSTANCE.toPath(Arrays.asList(labels));
         PsiElement element = ElmPluginHelper.INSTANCE.getPsiElement(true, path.toString(), myFile);
 
         String expected = String.format("describe \"%s\"", fallback);

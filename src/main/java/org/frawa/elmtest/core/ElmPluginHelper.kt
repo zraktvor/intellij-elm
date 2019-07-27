@@ -1,134 +1,122 @@
-package org.frawa.elmtest.core;
+package org.frawa.elmtest.core
 
-import com.intellij.openapi.util.Condition;
-import com.intellij.psi.PsiElement;
-import com.intellij.psi.PsiFile;
-import com.intellij.psi.util.PsiTreeUtil;
-import org.elm.lang.core.psi.ElmAtomTag;
-import org.elm.lang.core.psi.ElmOperandTag;
-import org.elm.lang.core.psi.ElmTypes;
-import org.elm.lang.core.psi.elements.ElmFunctionCallExpr;
-import org.elm.lang.core.psi.elements.ElmStringConstantExpr;
+import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiFile
+import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.psi.util.PsiTreeUtil.findFirstParent
+import org.elm.lang.core.psi.ElmAtomTag
+import org.elm.lang.core.psi.ElmOperandTag
+import org.elm.lang.core.psi.ElmTypes
+import org.elm.lang.core.psi.elements.ElmFunctionCallExpr
+import org.elm.lang.core.psi.elements.ElmStringConstantExpr
+import java.nio.file.Path
+import java.nio.file.Paths
 
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.Iterator;
-import java.util.Optional;
-import java.util.function.Function;
-import java.util.function.Predicate;
-import java.util.stream.Stream;
+object ElmPluginHelper {
 
-import static org.frawa.elmtest.core.LabelUtils.decodeLabel;
-
-public class ElmPluginHelper {
-
-    public static PsiElement getPsiElement(boolean isDescribe, String labels, PsiFile file) {
-        return getPsiElement(isDescribe, Paths.get(labels), file);
+    fun getPsiElement(isDescribe: Boolean, labels: String, file: PsiFile): PsiElement {
+        return getPsiElement(isDescribe, Paths.get(labels), file)
     }
 
-    private static PsiElement getPsiElement(boolean isDescribe, Path labelPath, PsiFile file) {
-        Optional<? extends PsiElement> found = findPsiElement(isDescribe, labelPath, file);
-        if (found.isPresent()) {
-            return found.get();
-        } else if (labelPath.getParent() != null) {
-            return getPsiElement(isDescribe, labelPath.getParent(), file);
-        }
-        return file;
+    private fun getPsiElement(isDescribe: Boolean, labelPath: Path, file: PsiFile): PsiElement {
+        return findPsiElement(isDescribe, labelPath, file)
+                ?: labelPath.parent?.let { getPsiElement(isDescribe, it, file) }
+                ?: file
     }
 
-    private static Optional<? extends PsiElement> findPsiElement(boolean isDescribe, Path labelPath, PsiFile file) {
-        if (labelPath.getNameCount() == 0) {
-            return Optional.empty();
+    private fun findPsiElement(isDescribe: Boolean, labelPath: Path, file: PsiFile): PsiElement? {
+        val labels = labels(labelPath)
+
+        if (labels.isEmpty()) {
+            return null
         }
 
-        String topLabel = decodeLabel(labelPath.getName(0));
-        if (labelPath.getNameCount() > 1 || isDescribe) {
-            Stream<ElmFunctionCallExpr> current = allSuites(topLabel).apply(file)
-                    .filter(topLevel());
-            for (int i = 1; i < labelPath.getNameCount() - 1; i++) {
-                String label = decodeLabel(labelPath.getName(i));
-                current = current
-                        .map(secondOperand())
-                        .flatMap(allSuites(label));
-            }
+        val topLabel = LabelUtils.decodeLabel(Paths.get(labels.first()))
+        val subLabels = labels.drop(1)
 
-            if (labelPath.getNameCount() > 1) {
-                String leafLabel = decodeLabel(labelPath.getName(labelPath.getNameCount() - 1));
-                Function<PsiElement, Stream<ElmFunctionCallExpr>> leaf = isDescribe
-                        ? allSuites(leafLabel)
-                        : allTests(leafLabel);
-                current = current
-                        .map(secondOperand())
-                        .flatMap(leaf);
-            }
-            return current
-                    .findFirst();
+        if (subLabels.isEmpty() && !isDescribe) {
+            return allTests(topLabel)(file).firstOrNull(topLevel())
         }
 
-        return allTests(topLabel).apply(file)
+        val topSuites = allSuites(topLabel)(file)
                 .filter(topLevel())
-                .findFirst();
-    }
 
-
-    private static Function<PsiElement, Stream<ElmFunctionCallExpr>> allSuites(String label) {
-        return psi -> functionCalls(psi, "describe")
-                .filter(firstArgumentIsString(label));
-    }
-
-    private static Function<PsiElement, Stream<ElmFunctionCallExpr>> allTests(String label) {
-        return psi -> functionCalls(psi, "test")
-                .filter(firstArgumentIsString(label));
-    }
-
-    private static Stream<ElmFunctionCallExpr> functionCalls(PsiElement parent, String targetName) {
-        return PsiTreeUtil.findChildrenOfType(parent, ElmFunctionCallExpr.class)
-                .stream()
-                .filter(call -> call.getTarget().getText().equals(targetName));
-    }
-
-    private static Predicate<ElmFunctionCallExpr> topLevel() {
-        return call -> null == PsiTreeUtil.findFirstParent(call, true, new Condition<PsiElement>() {
-            @Override
-            public boolean value(PsiElement element) {
-                return isSuite(element);
-            }
-        });
-    }
-
-    private static boolean isSuite(PsiElement element) {
-        return (element instanceof ElmFunctionCallExpr) && ((ElmFunctionCallExpr) element).getTarget().getText().equals("describe");
-    }
-
-    private static Predicate<ElmFunctionCallExpr> firstArgumentIsString(String value) {
-        return call -> firstOperand()
-                .andThen(literalString())
-                .andThen(s -> s.equals(value))
-                .apply(call);
-    }
-
-    private static Function<ElmFunctionCallExpr, ElmOperandTag> firstOperand() {
-        return call -> call.getArguments().iterator().next();
-    }
-
-    private static Function<ElmFunctionCallExpr, ElmAtomTag> secondOperand() {
-        return call -> {
-            Iterator<ElmAtomTag> iterator = call.getArguments().iterator();
-            iterator.next();
-            return iterator.next();
-        };
-    }
-
-    private static Function<ElmOperandTag, String> literalString() {
-        return op -> stringConstant(op);
-    }
-
-    private static String stringConstant(ElmOperandTag op) {
-        if (op instanceof ElmStringConstantExpr) {
-            return PsiTreeUtil.findSiblingForward(op.getFirstChild(), ElmTypes.REGULAR_STRING_PART, null).getText();
+        if (isDescribe) {
+            return subSuites(subLabels, topSuites).firstOrNull()
         }
-        return PsiTreeUtil.findChildOfType(op, ElmStringConstantExpr.class).getText();
+
+        val deepestSuites = subSuites(subLabels.dropLast(1), topSuites)
+        val leafLabel = LabelUtils.decodeLabel(Paths.get(labels.last()))
+        return deepestSuites.map(secondOperand())
+                .flatMap(allTests(leafLabel))
+                .firstOrNull()
     }
 
-}
+    private fun subSuites(labels: List<String>, tops: List<ElmFunctionCallExpr>): List<ElmFunctionCallExpr> {
+        return labels
+                .fold(tops)
+                { acc, label ->
+                    acc
+                            .map(secondOperand())
+                            .flatMap(allSuites(label))
+                }
+    }
 
+    private fun labels(path: Path): List<String> {
+        return (0 until path.nameCount)
+                .map { path.getName(it) }
+                .map { it.toString() }
+                .toList()
+    }
+
+    private fun allSuites(label: String): (PsiElement) -> List<ElmFunctionCallExpr> {
+        return {
+            functionCalls(it, "describe")
+                    .filter(firstArgumentIsString(label))
+        }
+    }
+
+    private fun allTests(label: String): (PsiElement) -> List<ElmFunctionCallExpr> {
+        return {
+            functionCalls(it, "test")
+                    .filter(firstArgumentIsString(label))
+        }
+    }
+
+    private fun functionCalls(parent: PsiElement, targetName: String): List<ElmFunctionCallExpr> {
+        return PsiTreeUtil.findChildrenOfType(parent, ElmFunctionCallExpr::class.java)
+                .filter { it.target.text == targetName }
+    }
+
+    private fun topLevel(): (ElmFunctionCallExpr) -> Boolean {
+        return { null == findFirstParent(it, true) { element -> isSuite(element) } }
+    }
+
+    private fun isSuite(element: PsiElement): Boolean {
+        return element is ElmFunctionCallExpr && element.target.text == "describe"
+    }
+
+    private fun firstArgumentIsString(value: String): (ElmFunctionCallExpr) -> Boolean {
+        return { literalString()(firstOperand()(it)) == value }
+    }
+
+    private fun firstOperand(): (ElmFunctionCallExpr) -> ElmOperandTag {
+        return { it.arguments.first() }
+    }
+
+    private fun secondOperand(): (ElmFunctionCallExpr) -> ElmAtomTag {
+        return { it.arguments.drop(1).first() }
+    }
+
+    private fun literalString(): (ElmOperandTag) -> String {
+        return { stringConstant(it) }
+    }
+
+    private fun stringConstant(op: ElmOperandTag): String {
+        return if (op is ElmStringConstantExpr) {
+            PsiTreeUtil.findSiblingForward(op.getFirstChild(), ElmTypes.REGULAR_STRING_PART, null)!!.text
+        } else {
+            PsiTreeUtil.findChildOfType(op, ElmStringConstantExpr::class.java)!!.text
+        }
+    }
+}

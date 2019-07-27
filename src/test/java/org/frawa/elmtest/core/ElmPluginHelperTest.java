@@ -8,7 +8,6 @@ import org.jetbrains.annotations.NotNull;
 import java.nio.file.Path;
 import java.util.Arrays;
 
-import static org.frawa.elmtest.core.ElmPluginHelper.getPsiElement;
 
 public class ElmPluginHelperTest extends ParsingTestCase {
 
@@ -71,7 +70,7 @@ public class ElmPluginHelperTest extends ParsingTestCase {
 
     private void assertSuite(int offset, String... labels) {
         Path path = LabelUtils.toPath(Arrays.asList(labels));
-        PsiElement element = getPsiElement(true, path.toString(), myFile);
+        PsiElement element = ElmPluginHelper.INSTANCE.getPsiElement(true, path.toString(), myFile);
 
         String expected = String.format("describe \"%s\"", labels[labels.length - 1]);
         assertEquals(expected, firstLine(text(element)));
@@ -80,7 +79,7 @@ public class ElmPluginHelperTest extends ParsingTestCase {
 
     private void assertTest(int offset, String... labels) {
         Path path = LabelUtils.toPath(Arrays.asList(labels));
-        PsiElement element = getPsiElement(false, path.toString(), myFile);
+        PsiElement element = ElmPluginHelper.INSTANCE.getPsiElement(false, path.toString(), myFile);
 
         String expected = String.format("test \"%s\"", labels[labels.length - 1]);
         assertEquals(expected, text(element));
@@ -89,13 +88,13 @@ public class ElmPluginHelperTest extends ParsingTestCase {
 
     private void assertMissing(String... labels) {
         Path path = LabelUtils.toPath(Arrays.asList(labels));
-        PsiElement element = getPsiElement(false, path.toString(), myFile);
+        PsiElement element = ElmPluginHelper.INSTANCE.getPsiElement(false, path.toString(), myFile);
         assertSame(myFile, element);
     }
 
     private void assertFallback(String fallback, String... labels) {
         Path path = LabelUtils.toPath(Arrays.asList(labels));
-        PsiElement element = getPsiElement(true, path.toString(), myFile);
+        PsiElement element = ElmPluginHelper.INSTANCE.getPsiElement(true, path.toString(), myFile);
 
         String expected = String.format("describe \"%s\"", fallback);
         assertEquals(expected, firstLine(text(element)));

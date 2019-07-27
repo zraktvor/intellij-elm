@@ -1,67 +1,58 @@
-package org.frawa.elmtest.core;
+package org.frawa.elmtest.core
 
-import com.intellij.openapi.components.ServiceManager;
-import com.intellij.openapi.project.Project;
-import org.elm.workspace.ElmProject;
-import org.elm.workspace.ElmWorkspaceService;
-import org.jetbrains.annotations.NotNull;
+import com.intellij.openapi.project.Project
+import org.elm.workspace.ElmProject
+import org.elm.workspace.elmWorkspace
+import java.nio.file.Files
+import java.nio.file.Path
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Optional;
-import java.util.stream.Stream;
+class ElmProjectTestsHelper(project: Project) {
 
-public class ElmProjectTestsHelper {
+    private val workspaceService = project.elmWorkspace
 
-    private final ElmWorkspaceService workspaceService;
+    private val testableProjects: List<ElmProject>
+        get() = workspaceService.allProjects
+                .filter { p -> Files.exists(p.projectDirPath.resolve("tests")) }
 
-    public ElmProjectTestsHelper(Project project) {
-        workspaceService = ServiceManager.getService(project, ElmWorkspaceService.class);
+    fun allNames(): List<String> {
+        return testableProjects.map { it.presentableName }
     }
 
-    public Stream<String> allNames() {
-        return getTestableProjects()
-                .map(ElmProject::getPresentableName);
+    fun nameByProjectDirPath(path: String): String? {
+        return testableProjects
+                .filter { p -> p.projectDirPath.toString() == path }
+                .map { it.presentableName }
+                .firstOrNull()
     }
 
-    @NotNull
-    private Stream<ElmProject> getTestableProjects() {
-        return workspaceService.getAllProjects().stream()
-                .filter(p -> Files.exists(p.getProjectDirPath().resolve("tests")));
+    fun projectDirPathByName(name: String): String? {
+        return testableProjects
+                .filter { it.presentableName == name }
+                .map { it.projectDirPath.toString() }
+                .firstOrNull()
     }
 
-    public Optional<String> nameByProjectDirPath(String path) {
-        return getTestableProjects()
-                .filter(p -> p.getProjectDirPath().toString().equals(path))
-                .map(ElmProject::getPresentableName)
-                .findFirst();
+    fun elmProjectByProjectDirPath(path: String): ElmProject? {
+        return testableProjects.firstOrNull { it.projectDirPath.toString() == path }
     }
 
-    public Optional<String> projectDirPathByName(String name) {
-        return getTestableProjects()
-                .filter(p -> p.getPresentableName().equals(name))
-                .map(ElmProject::getProjectDirPath)
-                .map(Path::toString)
-                .findFirst();
+    fun adjustElmCompilerProjectDirPath(elmFolder: String, compilerPath: Path): Path {
+        val elmProject = elmProjectByProjectDirPath(elmFolder)
+        // TODO [drop 0.18] no need to adjust the path for 19+
+        return if (elmProject?.isElm18 == true)
+            compilerPath.resolveSibling("elm-make")
+        else
+            compilerPath
     }
 
-    public Optional<ElmProject> elmProjectByProjectDirPath(String path) {
-        return getTestableProjects()
-                .filter(p -> p.getProjectDirPath().toString().equals(path))
-                .findFirst();
-    }
-
-    public Path adjustElmCompilerProjectDirPath(String elmFolder, Path compilerPath) {
-        return elmProjectByProjectDirPath(elmFolder)
-                .filter(ElmProject::isElm18)
-                .map(_1 -> compilerPath.resolveSibling("elm-make"))
-                .orElse(compilerPath);
-    }
-
-    public static Path elmFolderForTesting(ElmProject elmProject) {
-        return elmProject.isElm18() && elmProject.getPresentableName().equals("tests")
-                ? elmProject.getProjectDirPath().getParent()
-                : elmProject.getProjectDirPath();
+    companion object {
+        fun elmFolderForTesting(elmProject: ElmProject): Path {
+            // TODO [drop 0.18] simplify
+            return if (elmProject.isElm18 && elmProject.presentableName == "tests")
+                elmProject.projectDirPath.parent
+            else
+                elmProject.projectDirPath
+        }
     }
 
 }

@@ -51,13 +51,13 @@ class ElmTestRunProfileState(
         val elmCompilerBinary = toolchain.elmCompilerPath
                 ?: handleBadConfig(workspace, "Could not find the Elm compiler")
 
-        val useFolder = getElmFolder()
+        val useFolder = getElmFolder() ?: handleBadConfig(workspace, "No Elm project specified")
         val adjusted = ElmProjectTestsHelper(project).adjustElmCompilerProjectDirPath(useFolder, elmCompilerBinary)
 
         return if (!Files.exists(adjusted)) {
             handleBadConfig(workspace, "Could not find the Elm compiler (elm-make)")
         } else {
-            elmTestCLI.runTestsProcessHandler(adjusted, useFolder!!)
+            elmTestCLI.runTestsProcessHandler(adjusted, useFolder)
         }
     }
 

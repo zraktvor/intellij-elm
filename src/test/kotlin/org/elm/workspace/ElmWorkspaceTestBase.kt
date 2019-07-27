@@ -66,7 +66,7 @@ abstract class ElmWorkspaceTestBase : CodeInsightFixtureTestCase<ModuleFixtureBu
     }
 
 
-    fun checkEquals(expected: Any, actual: Any) {
+    fun checkEquals(expected: Any?, actual: Any?) {
         if (expected != actual)
             failure(expected.toString(), actual.toString())
     }

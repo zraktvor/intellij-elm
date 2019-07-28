@@ -4,6 +4,7 @@ import com.intellij.psi.PsiElement
 import com.intellij.testFramework.ParsingTestCase
 import junit.framework.TestCase
 import org.elm.lang.core.parser.ElmParserDefinition
+import org.frawa.elmtest.run.ElmPluginHelper
 import java.util.*
 
 

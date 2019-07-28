@@ -104,22 +104,24 @@ class ElmTestRunProfileState(
 
         override fun createTestEventsConverter(testFrameworkName: String, consoleProperties: TestConsoleProperties) =
                 object : OutputToGeneralTestEventsConverter(testFrameworkName, consoleProperties) {
-                    var processor = ElmTestJsonProcessor()
+                    var elmTestProcessor = ElmTestJsonProcessor()
 
                     override fun processServiceMessages(text: String, outputType: Key<*>?, visitor: ServiceMessageVisitor): Boolean {
-                        val events = processor.accept(text) ?: return false
+                        val events = elmTestProcessor.accept(text) ?: return false
                         events.forEach { processEvent(it) }
                         return true
                     }
 
                     private fun processEvent(event: TreeNodeEvent) {
-                        when (event) {
-                            is TestStartedEvent -> getProcessor().onTestStarted(event)
-                            is TestFinishedEvent -> getProcessor().onTestFinished(event)
-                            is TestFailedEvent -> getProcessor().onTestFailure(event)
-                            is TestIgnoredEvent -> getProcessor().onTestIgnored(event)
-                            is TestSuiteStartedEvent -> getProcessor().onSuiteStarted(event)
-                            is TestSuiteFinishedEvent -> getProcessor().onSuiteFinished(event)
+                        with(getProcessor()) {
+                            when (event) {
+                                is TestStartedEvent -> onTestStarted(event)
+                                is TestFinishedEvent -> onTestFinished(event)
+                                is TestFailedEvent -> onTestFailure(event)
+                                is TestIgnoredEvent -> onTestIgnored(event)
+                                is TestSuiteStartedEvent -> onSuiteStarted(event)
+                                is TestSuiteFinishedEvent -> onSuiteFinished(event)
+                            }
                         }
                     }
                 }

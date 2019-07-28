@@ -1,6 +1,7 @@
 package org.elm.workspace.compiler
 
 import com.google.gson.Gson
+import com.google.gson.JsonElement
 
 // The Elm compiler emits HTTP URLs with angle brackets around them
 private val urlPattern = Regex("""<((http|https)://.*?)>""")
@@ -29,35 +30,42 @@ data class ElmLocation(val path: String,
                        val region: Region?
 )
 
+fun elmJsonToCompilerMessages(json: String): List<ElmError> =
+        Gson().fromJson(json, Report::class.java)
+                ?.toElmErrors()
+                ?: error("failed to parse JSON report from elm")
 
-fun elmJsonToCompilerMessages(json: String): List<ElmError> {
-    val report = Gson().fromJson(json, Report::class.java) ?: error("failed to parse JSON report from elm")
-    return when (report) {
-        is Report.General -> {
-            listOf(ElmError(
-                    title = report.title,
-                    html = chunksToHtml(report.message),
-                    plaintext = chunksToPlaintext(report.message),
-                    location = report.path?.let { ElmLocation(path = it, moduleName = null, region = null) })
-            )
-        }
-        is Report.Specific -> {
-            report.errors.flatMap { error ->
-                error.problems.map { problem ->
-                    ElmError(
-                            title = problem.title,
-                            html = chunksToHtml(problem.message),
-                            plaintext = chunksToPlaintext(problem.message),
-                            location = ElmLocation(
-                                    path = error.path,
-                                    moduleName = error.name,
-                                    region = problem.region)
-                    )
+fun elmJsonToCompilerMessages(json: JsonElement): List<ElmError> =
+        Gson().fromJson(json, Report::class.java)
+                ?.toElmErrors()
+                ?: error("failed to parse JSON report from elm")
+
+fun Report.toElmErrors(): List<ElmError> =
+        when (this) {
+            is Report.General -> {
+                listOf(ElmError(
+                        title = title,
+                        html = chunksToHtml(message),
+                        plaintext = chunksToPlaintext(message),
+                        location = path?.let { ElmLocation(path = it, moduleName = null, region = null) })
+                )
+            }
+            is Report.Specific -> {
+                errors.flatMap { error ->
+                    error.problems.map { problem ->
+                        ElmError(
+                                title = problem.title,
+                                html = chunksToHtml(problem.message),
+                                plaintext = chunksToPlaintext(problem.message),
+                                location = ElmLocation(
+                                        path = error.path,
+                                        moduleName = error.name,
+                                        region = problem.region)
+                        )
+                    }
                 }
             }
         }
-    }
-}
 
 private fun chunksToPlaintext(chunks: List<Chunk>): String =
         chunks.joinToString("") {

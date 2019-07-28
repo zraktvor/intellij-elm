@@ -1,12 +1,15 @@
 package org.frawa.elmtest.core
 
 import com.intellij.openapi.vfs.VirtualFileManager
+import org.elm.workspace.compiler.ElmLocation
+import org.elm.workspace.compiler.End
+import org.elm.workspace.compiler.Region
+import org.elm.workspace.compiler.Start
 import org.frawa.elmtest.core.LabelUtils.commonParent
 import org.frawa.elmtest.core.LabelUtils.fromErrorLocationUrlPath
 import org.frawa.elmtest.core.LabelUtils.fromLocationUrlPath
 import org.frawa.elmtest.core.LabelUtils.pathString
 import org.frawa.elmtest.core.LabelUtils.subParents
-import org.frawa.elmtest.core.LabelUtils.toErrorLocationUrl
 import org.frawa.elmtest.core.LabelUtils.toPath
 import org.frawa.elmtest.core.LabelUtils.toSuiteLocationUrl
 import org.frawa.elmtest.core.LabelUtils.toTestLocationUrl
@@ -126,7 +129,11 @@ class LabelUtilsTest {
 
     @Test
     fun errorLocationUrl() {
-        val url = toErrorLocationUrl("my/path/file", 1313, 13)
+        val url = ElmLocation(
+                path = "my/path/file",
+                moduleName = null,
+                region = Region(Start(1313, 13), End(1314, 0))
+        ).toTestErrorLocationUrl()
         assertEquals("elmTestError://my/path/file::1313::13", url)
 
         val path = VirtualFileManager.extractPath(url)

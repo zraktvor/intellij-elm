@@ -5,14 +5,13 @@ import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonSyntaxException
 import com.intellij.execution.testframework.sm.runner.events.*
+import org.elm.workspace.compiler.ElmError
+import org.elm.workspace.compiler.elmJsonToCompilerMessages
 import org.frawa.elmtest.core.LabelUtils.commonParent
 import org.frawa.elmtest.core.LabelUtils.getName
 import org.frawa.elmtest.core.LabelUtils.subParents
-import org.frawa.elmtest.core.LabelUtils.toErrorLocationUrl
 import org.frawa.elmtest.core.LabelUtils.toSuiteLocationUrl
 import org.frawa.elmtest.core.LabelUtils.toTestLocationUrl
-import org.frawa.elmtest.core.json.CompileErrors
-import org.frawa.elmtest.core.json.Error
 import org.intellij.lang.annotations.Language
 import java.nio.file.Path
 
@@ -24,7 +23,7 @@ class ElmTestJsonProcessor {
         try {
             val obj: JsonObject = gson.fromJson(text, JsonObject::class.java) ?: return null
             if ("compile-errors" == obj.get("type")?.asString) {
-                return accept(toCompileErrors(obj))
+                return accept(elmJsonToCompilerMessages(text))
             }
 
             val event = obj.get("event")?.asString
@@ -58,7 +57,7 @@ class ElmTestJsonProcessor {
                 val json = text.substring(0, text.lastIndexOf("Compilation failed"))
                 val obj = gson.fromJson(json, JsonObject::class.java) ?: return null
                 if ("compile-errors" == obj.get("type")?.asString) {
-                    return accept(toCompileErrors(obj))
+                    return accept(elmJsonToCompilerMessages(json))
                 }
             }
             return null
@@ -74,28 +73,15 @@ class ElmTestJsonProcessor {
         return TestSuiteFinishedEvent(getName(path))
     }
 
-    private fun accept(compileErrors: CompileErrors): Sequence<TreeNodeEvent> {
-        return compileErrors.errors
-                ?.asSequence()
-                ?.flatMap { this.toErrorEvents(it) }
-                ?: emptySequence()
+    private fun accept(compileErrors: List<ElmError>): Sequence<TreeNodeEvent> {
+        return compileErrors.asSequence().flatMap {
+            sequenceOf(
+                    TestStartedEvent(it.title, it.location?.toTestErrorLocationUrl()),
+                    TestFailedEvent(it.title, null, it.plaintext, null, true, null, null, null, null, false, false, -1)
+            )
+        }
     }
 
-    fun toCompileErrors(obj: JsonObject): CompileErrors {
-        return gson.fromJson(obj, CompileErrors::class.java)
-    }
-
-    private fun toErrorEvents(error: Error): Sequence<TreeNodeEvent> {
-        return error.problems
-                ?.asSequence()
-                ?.flatMap { problem ->
-                    sequenceOf(
-                            TestStartedEvent(problem.title!!, toErrorLocationUrl(error.path!!, problem.region?.start!!.line, problem.region?.start!!.column)),
-                            TestFailedEvent(problem.title!!, null, problem.textMessage, null, true, null, null, null, null, false, false, -1)
-                    )
-                }
-                ?: emptySequence()
-    }
 
     companion object {
 

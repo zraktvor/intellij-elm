@@ -2,6 +2,7 @@ package org.frawa.elmtest.core
 
 import com.intellij.openapi.util.Pair
 import com.intellij.openapi.util.io.FileUtil
+import org.elm.workspace.compiler.ElmLocation
 import java.io.UnsupportedEncodingException
 import java.net.URLDecoder
 import java.net.URLEncoder
@@ -120,10 +121,6 @@ object LabelUtils {
         return result
     }
 
-    fun toErrorLocationUrl(path: String, line: Int, column: Int): String {
-        return String.format("%s://%s::%d::%d", ERROR_PROTOCOL, path, line, column)
-    }
-
     fun fromErrorLocationUrlPath(spec: String): Pair<String, Pair<Int, Int>> {
         val parts = spec.split("::".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
         val file = parts[0]
@@ -133,3 +130,10 @@ object LabelUtils {
     }
 
 }
+
+fun ElmLocation.toTestErrorLocationUrl(): String {
+    // TODO [kl] expand the error location URL to include the end line & column
+    val (line, column) = region?.let { it.start.line to it.start.column } ?: 0 to 0
+    return "%s://%s::%d::%d".format(LabelUtils.ERROR_PROTOCOL, path, line, column)
+}
+

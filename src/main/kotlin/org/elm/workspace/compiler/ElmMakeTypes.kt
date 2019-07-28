@@ -66,17 +66,3 @@ class ChunkDeserializer : JsonDeserializer<Chunk> {
                 else -> throw JsonParseException("Expected a simple string or a rich-text chunk")
             }
 }
-
-
-// ElmCompilerPanel UI types
-
-data class ElmError(
-        val html: String,
-        val title: String,
-        val location: ElmLocation?
-)
-
-data class ElmLocation(val path: String,
-                       val moduleName: String?,
-                       val region: Region?
-)

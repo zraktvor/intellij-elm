@@ -1,7 +1,6 @@
 package org.frawa.elmtest.core
 
 import com.google.gson.Gson
-import com.google.gson.GsonBuilder
 import com.google.gson.JsonObject
 import com.intellij.execution.testframework.sm.runner.events.TestFailedEvent
 import com.intellij.execution.testframework.sm.runner.events.TestFinishedEvent
@@ -303,70 +302,6 @@ class ElmTestJsonProcessorTest {
         assertEquals("elmTestDescribe://Exploratory", (list[0] as TestSuiteStartedEvent).locationUrl)
         assertEquals("elmTestDescribe://Exploratory/describe", (list[1] as TestSuiteStartedEvent).locationUrl)
         assertEquals("elmTestTest://Exploratory/describe/fail", (list[2] as TestStartedEvent).locationUrl)
-    }
-
-    @Test
-    fun parseCompileErrors() {
-        @Language("JSON")
-        val json = """
-            {
-                "type": "compile-errors",
-                "errors": [
-                    {
-                        "path": "PATH/tests/UiTests.elm",
-                        "name": "UiTests",
-                        "problems": [
-                            {
-                                "title": "TOO FEW ARGS",
-                                "region": {
-                                    "start": {
-                                        "line": 131,
-                                        "column": 33
-                                    },
-                                    "end": {
-                                        "line": 131,
-                                        "column": 39
-                                    }
-                                },
-                                "message": [
-                                    "The `Msg` type needs 1 argument, but I see 0 instead:\n\n131| update : Highlighter MyStyle -> IT.Msg -> Model MyStyle -> Model MyStyle\n                                     ",
-                                    {
-                                        "bold": false,
-                                        "underline": false,
-                                        "color": "red",
-                                        "string": "^^^^^^"
-                                    },
-                                    "\nWhat is missing? Are some parentheses misplaced?"
-                                ]
-                            }
-                        ]
-                    }
-                ]
-            }
-        """.trimIndent()
-        val gson = GsonBuilder().setPrettyPrinting().create()
-        val obj = gson.fromJson(json, JsonObject::class.java)
-        val compileErrors = processor.toCompileErrors(obj)
-        //        assertEquals("",gson.toJson(compileErrors));
-
-        assertNotNull(compileErrors)
-        assertEquals(1, compileErrors.errors?.size)
-
-        val error = compileErrors.errors!![0]
-        assertEquals("PATH/tests/UiTests.elm", error.path)
-        assertEquals(1, error.problems?.size)
-
-        val problem = error.problems!![0]
-        assertEquals("TOO FEW ARGS", problem.title)
-        assertEquals(131, problem.region?.start?.line)
-        assertEquals(33, problem.region?.start?.column)
-
-        val expectedMessage = "The `Msg` type needs 1 argument, but I see 0 instead:\n" +
-                "\n" +
-                "131| update : Highlighter MyStyle -> IT.Msg -> Model MyStyle -> Model MyStyle\n" +
-                "                                     ^^^^^^\n" +
-                "What is missing? Are some parentheses misplaced?"
-        assertEquals(expectedMessage, problem.textMessage)
     }
 
     @Test

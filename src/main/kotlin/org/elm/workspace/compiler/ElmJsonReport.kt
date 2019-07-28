@@ -6,6 +6,30 @@ import com.google.gson.Gson
 private val urlPattern = Regex("""<((http|https)://.*?)>""")
 
 
+/**
+ * A higher-level representation of the Elm compiler's [error message format][org.elm.workspace.compiler.Report]
+ *
+ * @property title Brief description of the error
+ * @property html The error details as HTML
+ * @property plaintext The error details as plaintext
+ * @property location The location of the error, if available
+ */
+data class ElmError(
+        val title: String,
+        val html: String,
+        val plaintext: String,
+        val location: ElmLocation?
+)
+
+/**
+ * The location of a compile error
+ */
+data class ElmLocation(val path: String,
+                       val moduleName: String?,
+                       val region: Region?
+)
+
+
 fun elmJsonToCompilerMessages(json: String): List<ElmError> {
     val report = Gson().fromJson(json, Report::class.java) ?: error("failed to parse JSON report from elm")
     return when (report) {
@@ -13,6 +37,7 @@ fun elmJsonToCompilerMessages(json: String): List<ElmError> {
             listOf(ElmError(
                     title = report.title,
                     html = chunksToHtml(report.message),
+                    plaintext = chunksToPlaintext(report.message),
                     location = report.path?.let { ElmLocation(path = it, moduleName = null, region = null) })
             )
         }
@@ -22,6 +47,7 @@ fun elmJsonToCompilerMessages(json: String): List<ElmError> {
                     ElmError(
                             title = problem.title,
                             html = chunksToHtml(problem.message),
+                            plaintext = chunksToPlaintext(problem.message),
                             location = ElmLocation(
                                     path = error.path,
                                     moduleName = error.name,
@@ -32,6 +58,14 @@ fun elmJsonToCompilerMessages(json: String): List<ElmError> {
         }
     }
 }
+
+private fun chunksToPlaintext(chunks: List<Chunk>): String =
+        chunks.joinToString("") {
+            when (it) {
+                is Chunk.Unstyled -> it.string
+                is Chunk.Styled -> it.string
+            }
+        }
 
 private fun chunksToHtml(chunks: List<Chunk>): String =
         chunks.joinToString("",

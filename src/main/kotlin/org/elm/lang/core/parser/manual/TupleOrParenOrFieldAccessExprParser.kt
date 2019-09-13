@@ -27,9 +27,9 @@ upper TupleUpper ::=
     { elementType = TupleExpr }
 
  */
-// TODO expand parser to also parse `FieldAccess` expressions that start with a parenthesized expr
-class TupleOrParenExprParser(
-        private val exprParser: Parser
+class TupleOrParenOrFieldAccessExprParser(
+        private val exprParser: Parser,
+        private val fieldAccessSegmentParser: Parser
 ) : Parser {
 
     override fun parse(b: PsiBuilder, level: Int): Boolean {
@@ -55,7 +55,26 @@ class TupleOrParenExprParser(
         }
 
         if (consumeTokenSmart(b, RIGHT_PARENTHESIS)) {
-            return commit(PARENTHESIZED_EXPR, success = true)
+            // Now decide whether this is a plain ParenthesizedExpr or a FieldAccessExpr
+
+            if (b.rawLookup(0) == DOT) {
+                // field access that started with a parenthesized expr
+                val fieldAccessMarker = tupleOrParens.precede()
+                tupleOrParens.done(PARENTHESIZED_EXPR)
+                while (b.rawLookup(0) == DOT) {
+                    // parse: dot-separated field access (e.g. `model.user.name`)
+                    if (!fieldAccessSegmentParser.parse(b, level)) {
+                        exit_section_(b, level, fieldAccessMarker, FIELD_ACCESS_EXPR, false, /*pinned*/ true, null)
+                        return true
+                    }
+                }
+
+                exit_section_(b, level, fieldAccessMarker, FIELD_ACCESS_EXPR, true, /*pinned*/ true, null)
+                return true
+            } else {
+                // paren expr
+                return commit(PARENTHESIZED_EXPR, success = true)
+            }
         }
 
         // If this is actually a tuple expression, there should be a comma right here.

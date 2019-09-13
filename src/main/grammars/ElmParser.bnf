@@ -317,7 +317,7 @@ private Atom ::=
     | TupleConstructorExpr
     | UnitExpr
     | FieldAccessExpr
-    | TupleOrParenExpr
+    | TupleOrParenOrFieldAccessExpr
     | ValueExpr
     | FieldAccessorFunctionExpr
     | ListExpr
@@ -333,12 +333,12 @@ private Atom ::=
 private expr_delimiters ::= COMMA | LEFT_BRACE | LEFT_PARENTHESIS | LEFT_SQUARE_BRACKET
 
 
-external TupleOrParenExpr ::= parseTupleOrParenExpr Expression
+external TupleOrParenOrFieldAccessExpr ::= parseTupleOrParenOrFieldAccessExpr Expression FieldAccessSegment
 
 
 FieldAccessExpr ::= FieldAccessStart FieldAccessSegment+
 
-private FieldAccessStart ::= ValueExpr | ParenthesizedExpr | RecordExpr
+private FieldAccessStart ::= ValueExpr | RecordExpr // ParenthesizedExpr will be handled by manual parse rule together with tuples in order to avoid backtracking
 
 left FieldAccessSegment ::=
     DotWithoutWhitespace LOWER_CASE_IDENTIFIER

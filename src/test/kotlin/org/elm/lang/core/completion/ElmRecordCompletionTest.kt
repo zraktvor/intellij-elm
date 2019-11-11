@@ -110,4 +110,70 @@ f : Foo -> String
 f r =
     case r.name.first{-caret-}
 """)
+
+    fun `test record construction from one letter with inferred record`() = doSingleCompletion(
+            """
+type alias Foo = { name : String }
+f : Foo
+f = {n{-caret-}}
+""", """
+type alias Foo = { name : String }
+f : Foo
+f = {name={-caret-}}
+""")
+
+    fun `test record construction from blank with inferred record`() = doSingleCompletion(
+            """
+type alias Foo = { name : String }
+f : Foo
+f = {{-caret-}}
+""", """
+type alias Foo = { name : String }
+f : Foo
+f = {name={-caret-}}
+""")
+
+    fun `test record construction from one letter with inferred function`() = doSingleCompletion(
+            """
+type alias Foo = { name : String }
+f : String -> Foo
+f n = {n{-caret-}}
+""", """
+type alias Foo = { name : String }
+f : String -> Foo
+f n = {name={-caret-}}
+""")
+
+    fun `test record construction from blank with inferred function`() = doSingleCompletion(
+            """
+type alias Foo = { name : String }
+f : String -> Foo
+f n = {{-caret-}}
+""", """
+type alias Foo = { name : String }
+f : String -> Foo
+f n = {name={-caret-}}
+""")
+
+    fun `test record update from one letter`() = doSingleCompletion(
+            """
+type alias Foo = {}
+f : Foo -> {name: String}
+f old = {old|n{-caret-}}
+""", """
+type alias Foo = {}
+f : Foo -> {name: String}
+f old = {old|name={-caret-}}
+""")
+
+    fun `test record update from blank`() = doSingleCompletion(
+            """
+type alias Foo = {}
+f : Foo -> {name: String}
+f old = {old|{-caret-}}
+""", """
+type alias Foo = {}
+f : Foo -> {name: String}
+f old = {old|name={-caret-}}
+""")
 }

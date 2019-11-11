@@ -8,6 +8,7 @@ import org.elm.lang.core.ElmLanguage
 import org.elm.lang.core.psi.ElmFile
 import org.elm.lang.core.psi.ElmTypes
 import org.elm.lang.core.psi.elementType
+import org.elm.lang.core.psi.elements.ElmRecordExpr
 
 class ElmCompletionContributor : CompletionContributor() {
 
@@ -26,7 +27,7 @@ class ElmCompletionContributor : CompletionContributor() {
         for languages like Elm where many parse rules require a lower-case identifier.
         */
 
-        if (pre.elementType == ElmTypes.DOT) {
+        if (pre.elementType == ElmTypes.DOT || pre.elementType == ElmTypes.LEFT_BRACE || (pre.elementType == ElmTypes.PIPE && pre.parent is ElmRecordExpr)) {
             // Assume that after a dot, a lower-case identifier should follow.
             // This works well for functions qualified by their module name (e.g. `String.length`)
             // but it does NOT work for qualified types (e.g. `Task.Task`)

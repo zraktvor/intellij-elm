@@ -7,11 +7,9 @@ import org.elm.lang.core.psi.ELM_IDENTIFIERS
 import org.elm.lang.core.psi.ElmFieldAccessTargetTag
 import org.elm.lang.core.psi.elementType
 import org.elm.lang.core.psi.elements.ElmFieldAccessExpr
+import org.elm.lang.core.psi.elements.ElmRecordExpr
 import org.elm.lang.core.psi.elements.ElmValueExpr
-import org.elm.lang.core.types.Ty
-import org.elm.lang.core.types.TyRecord
-import org.elm.lang.core.types.findTy
-import org.elm.lang.core.types.renderedText
+import org.elm.lang.core.types.*
 
 object ElmRecordFieldSuggestor : Suggestor {
 
@@ -29,6 +27,22 @@ object ElmRecordFieldSuggestor : Suggestor {
             // provide each field as a completion result
             ty.fields.forEach { fieldName, fieldTy ->
                 result.add(fieldName, fieldTy)
+            }
+        }
+
+        if (pos.elementType in ELM_IDENTIFIERS && parent is ElmRecordExpr) {
+            // Infer the type of the record under construction
+            // and suggest that record's fields as completion results.
+
+            val tyInferred: Ty? = parent.findInference()?.ty
+            val recordInferred: TyRecord? = (if (tyInferred is TyFunction) tyInferred.ret else tyInferred) as? TyRecord
+            val recordBase: TyRecord? = parent.baseRecordIdentifier?.reference?.resolve()?.findTy() as? TyRecord
+
+            val fields = recordInferred?.fields?.toList().orEmpty() + recordBase?.fields?.toList().orEmpty()
+
+            // provide each field as a completion result
+            fields.forEach { (fieldName, fieldTy) ->
+                result.add("$fieldName=", fieldTy)
             }
         }
     }
